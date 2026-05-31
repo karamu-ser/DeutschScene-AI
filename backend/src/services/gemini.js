@@ -574,6 +574,125 @@ ${JSON.stringify(payload).slice(0, 25000)}
   }
 }
 
+async function generateAiLehrerReply({ lessonContent, userAnswer, expectedAnswer, history = [], level = 'A1' }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
+  const model = getModel(apiKey);
+  const payload = {
+    level: normalizedLevel,
+    lessonContent,
+    userAnswer,
+    expectedAnswer,
+    history: history.slice(-8)
+  };
+
+  const prompt = `
+Tu es "AI Lehrer", un professeur d'allemand patient construit a partir d'une lecon PDF.
+
+Priorite absolue:
+1. Utilise d'abord le vocabulaire, les regles, les exemples et dialogues de lessonContent.
+2. Si tu ajoutes un mini exercice, il doit etre marque from_pdf:false et based_on_pdf:true.
+3. Ne passe pas trop vite a la suite: corrige, fais repeter, puis propose un mini exercice.
+4. Adapte la difficulte au niveau ${normalizedLevel}.
+5. Explique en francais simple, avec allemand exact pour la phrase correcte.
+
+Retourne UNIQUEMENT ce JSON valide:
+{
+  "mode": "gemini",
+  "level": "${normalizedLevel}",
+  "feedback_fr": "correction simple en francais",
+  "feedback_ar": "شرح قصير بالعربية",
+  "correct_answer": "phrase correcte attendue",
+  "repeat_prompt": "phrase courte demandant de repeter",
+  "mistake": {
+    "mistake_type": "word_order/conjugation/article/plural/vocabulary/pronunciation/spelling/wrong_preposition/wrong_case/missing_verb/wrong_w_question",
+    "expected": "phrase attendue",
+    "user_answer": "reponse utilisateur",
+    "related_rule": "regle du PDF si disponible"
+  },
+  "next_exercise": {
+    "type": "word_order/fill_blank/translate/article/conjugation",
+    "prompt_fr": "consigne en francais",
+    "prompt_de": "consigne en allemand ou null",
+    "answer": "reponse attendue",
+    "from_pdf": false,
+    "based_on_pdf": true
+  }
+}
+
+Contexte JSON:
+${JSON.stringify(payload).slice(0, 45000)}
+`;
+
+  const result = await generateContent(model, prompt);
+  const clean = cleanJSON(result.response.text());
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('AI Lehrer parse error:', clean.substring(0, 500));
+    throw new Error('Gemini returned invalid AI Lehrer JSON: ' + e.message);
+  }
+}
+
+async function generateStoryFromLesson({ lessonContent, level = 'A1' }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
+  const model = getModel(apiKey);
+  const prompt = `
+Tu es un professeur d'allemand. Cree une petite histoire adaptee au niveau ${normalizedLevel}.
+
+Regles:
+- Utilise principalement les mots, phrases, exemples et structures de la lecon PDF.
+- Ajoute traduction francaise et arabe.
+- Ajoute des questions de comprehension.
+- Decoupe l'audio phrase par phrase via audio_text.
+- Comme l'histoire est generee, elle doit etre dans suggested_enrichment avec from_pdf:false et based_on_pdf:true.
+- Retourne UNIQUEMENT un JSON valide, sans markdown.
+
+Format:
+{
+  "story_title": "titre",
+  "level": "${normalizedLevel}",
+  "based_on_lesson_id": "",
+  "suggested_enrichment": {
+    "from_pdf": false,
+    "based_on_pdf": true
+  },
+  "paragraphs": [
+    {
+      "de": "phrase ou court paragraphe allemand",
+      "fr": "traduction francaise",
+      "ar": "الترجمة العربية",
+      "audio_text": "texte allemand a prononcer"
+    }
+  ],
+  "comprehension_questions": [
+    {
+      "question_de": "question simple en allemand",
+      "question_fr": "traduction francaise",
+      "answer": "reponse attendue"
+    }
+  ]
+}
+
+Contenu PDF normalise:
+${JSON.stringify(lessonContent).slice(0, 45000)}
+`;
+
+  const result = await generateContent(model, prompt);
+  const clean = cleanJSON(result.response.text());
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('Story parse error:', clean.substring(0, 500));
+    throw new Error('Gemini returned invalid story JSON: ' + e.message);
+  }
+}
+
 module.exports = {
   analyzeLessonFile,
   analyzeLessonText,
@@ -583,5 +702,7 @@ module.exports = {
   summarizeLessonsForReview,
   generateGermanBasics,
   generateDialogueFilmScene,
-  generateConversationReply
+  generateConversationReply,
+  generateAiLehrerReply,
+  generateStoryFromLesson
 };

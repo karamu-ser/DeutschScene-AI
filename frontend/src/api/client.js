@@ -39,4 +39,12 @@ export const speakHighQuality = (data) =>
 export const getDashboard = () => api.get('/progress/dashboard');
 export const getReviewWords = () => api.get('/progress/review');
 
+export const getMistakes = (params) => api.get('/mistakes', { params });
+export const recordMistake = (data) => api.post('/mistakes', data);
+export const getGeneratedContent = (params) => api.get('/generated-content', { params });
+export const aiLehrerMock = (data) => api.post('/ai-lehrer/mock', data);
+export const aiLehrerRespond = (data) => api.post('/ai-lehrer/respond', data);
+export const generateExam = (data) => api.post('/exam/generate', data);
+export const generateStory = (data) => api.post('/story/generate', data);
+
 export default api;

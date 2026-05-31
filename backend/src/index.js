@@ -88,6 +88,11 @@ app.use((req, res, next) => {
   app.use('/api/conversation', authMiddleware, require('./routes/conversation'));
   app.use('/api/progress', authMiddleware, require('./routes/progress'));
   app.use('/api/tts', authMiddleware, require('./routes/tts'));
+  app.use('/api/mistakes', authMiddleware, require('./routes/mistakes'));
+  app.use('/api/generated-content', authMiddleware, require('./routes/generatedContent'));
+  app.use('/api/ai-lehrer', authMiddleware, require('./routes/aiLehrer'));
+  app.use('/api/exam', authMiddleware, require('./routes/exam'));
+  app.use('/api/story', authMiddleware, require('./routes/story'));
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Deutsch Lernen API is running 🇩🇪', timestamp: new Date().toISOString() });

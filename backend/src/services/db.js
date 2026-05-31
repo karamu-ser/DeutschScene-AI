@@ -167,6 +167,52 @@ function initSchema() {
       updated_at   TEXT DEFAULT (datetime('now'))
     )
   `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS mistakes (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL,
+      lesson_id     INTEGER,
+      mistake_type  TEXT NOT NULL,
+      expected      TEXT NOT NULL,
+      user_answer   TEXT NOT NULL,
+      related_rule  TEXT,
+      count         INTEGER DEFAULT 1,
+      last_seen     TEXT DEFAULT (datetime('now')),
+      created_at    TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE SET NULL
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lesson_attempts (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        INTEGER NOT NULL,
+      lesson_id      INTEGER,
+      activity_type  TEXT NOT NULL,
+      score          INTEGER,
+      metadata_json  TEXT DEFAULT '{}',
+      created_at     TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE SET NULL
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS generated_content (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL,
+      lesson_id     INTEGER,
+      type          TEXT NOT NULL,
+      title         TEXT,
+      content_json  TEXT NOT NULL,
+      from_pdf      INTEGER DEFAULT 0,
+      based_on_pdf  INTEGER DEFAULT 1,
+      generated_by  TEXT DEFAULT 'local',
+      created_at    TEXT DEFAULT (datetime('now')),
+      updated_at    TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE SET NULL
+    )
+  `);
   migrateSchema();
   saveDb();
 }
@@ -187,6 +233,9 @@ function migrateSchema() {
   ensureColumn('words', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE');
   ensureColumn('quiz_sessions', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE');
   ensureColumn('pronunciation_sessions', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE');
+  ensureColumn('generated_content', 'title', 'TEXT');
+  ensureColumn('generated_content', 'generated_by', "TEXT DEFAULT 'local'");
+  ensureColumn('generated_content', 'updated_at', "TEXT DEFAULT (datetime('now'))");
 }
 
 function query(sql, params = []) {
