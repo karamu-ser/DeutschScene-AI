@@ -1,0 +1,53 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build output
+dist/
+dist-ssr/
+frontend/dist/
+frontend/dist-ssr/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Runtime data
+*.db
+*.sqlite
+*.sqlite3
+*.db.bak*
+backend/database.db
+backend/database.db.bak*
+backend/uploads/
+backend/cache/
+backend/logs/
+
+# Test and coverage output
+coverage/
+backend/coverage/
+
+# Local certificates
+*.pem
+*.key
+backend/certs/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local assistant/workspace metadata
+.agents/
+.codex/
