@@ -10,6 +10,9 @@ const { authMiddleware } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+const apiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || (isProduction ? 100 : 1000));
+const authRateLimitMax = Number(process.env.AUTH_RATE_LIMIT_MAX || (isProduction ? 10 : 100));
 
 const allowedOrigins = new Set([
   process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -39,13 +42,13 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: apiRateLimitMax,
   message: { error: 'Too many requests from this IP, please try again later.' },
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10, // stricter for auth attempts
+  max: authRateLimitMax,
   skipSuccessfulRequests: true,
   message: { error: 'Trop de tentatives. Réessaie dans 15 minutes.' },
 });

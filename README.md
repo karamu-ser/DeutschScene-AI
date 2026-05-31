@@ -227,6 +227,9 @@ GEMINI_MODEL=gemini-3.1-flash-lite
 
 LOG_LEVEL=info
 
+API_RATE_LIMIT_MAX=1000
+AUTH_RATE_LIMIT_MAX=100
+
 HTTPS_ENABLED=false
 HTTPS_KEY_PATH=/path/to/key.pem
 HTTPS_CERT_PATH=/path/to/cert.pem

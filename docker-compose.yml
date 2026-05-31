@@ -12,6 +12,8 @@ services:
       - FRONTEND_URL=http://localhost:5173
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - API_RATE_LIMIT_MAX=${API_RATE_LIMIT_MAX:-1000}
+      - AUTH_RATE_LIMIT_MAX=${AUTH_RATE_LIMIT_MAX:-100}
     volumes:
       - ./backend/database.db:/app/backend/database.db
       - ./backend/logs:/app/backend/logs
