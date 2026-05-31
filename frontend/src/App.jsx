@@ -7,6 +7,11 @@ import DialogueFilm from './pages/DialogueFilm';
 import Quiz         from './pages/Quiz';
 import Pronunciation from './pages/Pronunciation';
 import Conversation from './pages/Conversation';
+import AiLehrer from './pages/AiLehrer';
+import ExamMode from './pages/ExamMode';
+import StoryMode from './pages/StoryMode';
+import WeaknessMap from './pages/WeaknessMap';
+import SmartPractice from './pages/SmartPractice';
 import Vocabulary   from './pages/Vocabulary';
 import Summary      from './pages/Summary';
 import Basics       from './pages/Basics';
@@ -24,6 +29,11 @@ const NAV = [
   { to:'/dialogue-film', label:'Dialogfilm',   icon:'film'      },
   { to:'/quiz',         label:'Quiz',         icon:'quiz'      },
   { to:'/conversation',  label:'AI Gespräch', icon:'chat'      },
+  { to:'/ai-lehrer',    label:'AI Lehrer',    icon:'teacher'   },
+  { to:'/smart-practice', label:'Intelligentes Üben', icon:'target' },
+  { to:'/weakness-map', label:'Schwächenkarte', icon:'map'       },
+  { to:'/exam',         label:'Prüfung',      icon:'exam'      },
+  { to:'/story',        label:'Geschichten',  icon:'story'     },
   { to:'/pronunciation',label:'Aussprache',   icon:'mic'       },
   { to:'/vocabulary',   label:'Wortschatz',   icon:'book'      },
 ];
@@ -38,6 +48,11 @@ const ICONS = {
   film:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16"/><path d="M17 4v16"/><path d="M2 9h5"/><path d="M17 9h5"/><path d="M2 15h5"/><path d="M17 15h5"/></svg>,
   quiz:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   chat:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg>,
+  teacher:   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M5 10v5c2 2 4 3 7 3s5-1 7-3v-5"/><path d="M21 8v6"/></svg>,
+  target:    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>,
+  map:       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>,
+  exam:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3h6l2 2h3v16H4V5h3l2-2z"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>,
+  story:     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7"/><path d="M9 11h7"/></svg>,
   mic:       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>,
   book:      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
 };
@@ -85,6 +100,11 @@ function ProtectedLayout() {
           <Route path="/dialogue-film"  element={<DialogueFilm/>} />
           <Route path="/quiz"          element={<Quiz/>}         />
           <Route path="/conversation"   element={<Conversation/>} />
+          <Route path="/ai-lehrer"      element={<AiLehrer/>}     />
+          <Route path="/smart-practice" element={<SmartPractice/>}/>
+          <Route path="/weakness-map"   element={<WeaknessMap/>}  />
+          <Route path="/exam"           element={<ExamMode/>}     />
+          <Route path="/story"          element={<StoryMode/>}    />
           <Route path="/pronunciation" element={<Pronunciation/>}/>
           <Route path="/vocabulary"    element={<Vocabulary/>}   />
         </Routes>

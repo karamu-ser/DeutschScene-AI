@@ -19,6 +19,11 @@ The project is designed as a personal learning platform for A1/A2 German learner
 - KI-generierte Zusammenfassungen und deutsche Grundlagen.
 - Dialogfilm-Modus für szenenbasiertes Sprachtraining.
 - AI Gespräch mit niveauangepassten deutschen Antworten, Korrekturen, Übersetzungen und nützlichem Wortschatz.
+- AI Lehrer Mode for PDF-based correction, mini exercises, and adaptive teacher feedback.
+- Intelligentes Üben based on mistakes, difficult words, and lesson focus.
+- Schwächenkarte for visualizing repeated mistakes and weak skill areas.
+- Prüfung mode for mini exams generated from saved lessons.
+- Geschichten mode for level-adapted stories based on lesson vocabulary and structures.
 - Authentifizierte Benutzerkonten mit JWT und bcrypt-Passwort-Hashing.
 - Lernübersicht mit neuen Wörtern, Wiederholungen, Statistiken und schwierigen Bereichen.
 - Produktionsorientiertes Backend: Rate Limiting, Helmet, CORS, Logging und Docker-Support.
@@ -80,6 +85,26 @@ Or run each service manually from the `backend` and `frontend` folders as descri
 ### AI Gespräch
 
 ![DeutschScene AI Gespräch page](docs/screenshots/conversation.png)
+
+### AI Lehrer
+
+![DeutschScene AI Lehrer page](docs/screenshots/ai-lehrer.png)
+
+### Intelligentes Üben
+
+![DeutschScene AI smart practice page](docs/screenshots/smart-practice.png)
+
+### Schwächenkarte
+
+![DeutschScene AI weakness map page](docs/screenshots/weakness-map.png)
+
+### Prüfung
+
+![DeutschScene AI exam mode page](docs/screenshots/exam.png)
+
+### Geschichten
+
+![DeutschScene AI story mode page](docs/screenshots/story.png)
 
 ### Pronunciation
 

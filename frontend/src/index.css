@@ -70,6 +70,8 @@ body {
 .sidebar-nav {
   padding: 12px 0;
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .nav-item {
