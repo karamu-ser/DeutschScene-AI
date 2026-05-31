@@ -77,6 +77,10 @@ Or run each service manually from the `backend` and `frontend` folders as descri
 
 ![DeutschScene AI quiz page](docs/screenshots/quiz.png)
 
+### AI Conversation Practice
+
+![DeutschScene AI conversation practice page](docs/screenshots/conversation.png)
+
 ### Pronunciation
 
 ![DeutschScene AI pronunciation page](docs/screenshots/pronunciation.png)
