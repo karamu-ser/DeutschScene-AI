@@ -83,10 +83,22 @@ export default function Conversation() {
       stopListening();
       return;
     }
-    startListening((spoken) => {
-      setDraft(spoken);
-      sendText(spoken);
-    });
+    stop();
+    setApiError('');
+    startListening(
+      (spoken) => {
+        setDraft(spoken);
+        sendText(spoken);
+      },
+      {
+        onEnd: (heardResult) => {
+          if (!heardResult) setApiError('Aucune phrase détectée. Réessaie en parlant plus clairement.');
+        },
+        onError: () => {
+          setApiError('Microphone indisponible. Vérifie les permissions du navigateur.');
+        }
+      }
+    );
   };
 
   const resetConversation = () => {
@@ -172,7 +184,7 @@ export default function Conversation() {
         </section>
 
         <aside className="conversation-controls card">
-          <div className="mic-listener conversation-mic">
+          <div className={`mic-listener conversation-mic${isListening ? ' is-listening' : ''}`}>
             <span className="mic-ring" />
             <button
               className={`btn-icon${isListening ? ' active' : ''}`}
