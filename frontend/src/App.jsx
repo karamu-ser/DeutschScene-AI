@@ -15,17 +15,17 @@ import { useAuth } from './context/AuthContext';
 import './index.css';
 
 const NAV = [
-  { to:'/',             label:'Dashboard',    icon:'dashboard' },
-  { to:'/upload',       label:'Importer',     icon:'upload'    },
-  { to:'/lessons',      label:'Mes Leçons',   icon:'lessons'   },
-  { to:'/resume',       label:'Résumé',       icon:'summary'   },
-  { to:'/bases',        label:'Bases IA',     icon:'spark'     },
-  { to:'/flashcards',   label:'Flashcards',   icon:'cards'     },
-  { to:'/dialogue-film', label:'Dialogue Film',icon:'film'      },
+  { to:'/',             label:'Übersicht',    icon:'dashboard' },
+  { to:'/upload',       label:'Importieren',  icon:'upload'    },
+  { to:'/lessons',      label:'Lektionen',    icon:'lessons'   },
+  { to:'/resume',       label:'Zusammenfassung', icon:'summary' },
+  { to:'/bases',        label:'KI-Grundlagen', icon:'spark'    },
+  { to:'/flashcards',   label:'Lernkarten',   icon:'cards'     },
+  { to:'/dialogue-film', label:'Dialogfilm',   icon:'film'      },
   { to:'/quiz',         label:'Quiz',         icon:'quiz'      },
-  { to:'/conversation',  label:'Parler IA',   icon:'chat'      },
-  { to:'/pronunciation',label:'Prononciation',icon:'mic'       },
-  { to:'/vocabulary',   label:'Vocabulaire',  icon:'book'      },
+  { to:'/conversation',  label:'AI Gespräch', icon:'chat'      },
+  { to:'/pronunciation',label:'Aussprache',   icon:'mic'       },
+  { to:'/vocabulary',   label:'Wortschatz',   icon:'book'      },
 ];
 
 const ICONS = {

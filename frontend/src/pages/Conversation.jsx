@@ -111,8 +111,8 @@ export default function Conversation() {
   return (
     <div className="page conversation-page">
       <div className="page-header">
-        <h2>Parler avec l'IA</h2>
-        <p>Pratique une conversation en allemand adaptée à ton niveau, avec correction et vocabulaire utile.</p>
+        <h2>AI Gespräch</h2>
+        <p>Übe ein deutsches Gespräch passend zu deinem Niveau, mit Korrektur und nützlichem Wortschatz.</p>
       </div>
 
       <div className="conversation-toolbar card">
@@ -124,13 +124,13 @@ export default function Conversation() {
         </label>
 
         <label>
-          <span>Thème</span>
+          <span>Thema</span>
           <select value={topic} onChange={e => setTopic(e.target.value)}>
             {topics.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>
 
-        <button className="btn btn-ghost" type="button" onClick={resetConversation}>Nouvelle conversation</button>
+        <button className="btn btn-ghost" type="button" onClick={resetConversation}>Neues Gespräch</button>
       </div>
 
       <div className="conversation-shell">
@@ -138,7 +138,7 @@ export default function Conversation() {
           {messages.length === 0 && (
             <div className="conversation-empty">
               <div>💬</div>
-              <p>Choisis un niveau et un thème, puis parle en allemand. L'IA répondra simplement si tu es débutant.</p>
+              <p>Wähle ein Niveau und ein Thema, dann sprich auf Deutsch. Die KI antwortet einfach, wenn du Anfänger bist.</p>
             </div>
           )}
 
@@ -203,7 +203,7 @@ export default function Conversation() {
               )}
             </button>
           </div>
-          <p>{isListening ? 'Ich höre zu...' : 'Clique et parle en allemand'}</p>
+          <p>{isListening ? 'Ich höre zu...' : 'Klicken und auf Deutsch sprechen'}</p>
           {transcript && <div className="transcript-box">"{transcript}"</div>}
           {micError && <div className="error-message">{micError}</div>}
           {apiError && <div className="error-message">{apiError}</div>}
@@ -212,11 +212,11 @@ export default function Conversation() {
             <textarea
               value={draft}
               onChange={e => setDraft(e.target.value)}
-              placeholder="Ou écris une phrase en allemand..."
+              placeholder="Oder schreibe einen Satz auf Deutsch..."
               rows={4}
             />
             <button className="btn btn-primary" type="submit" disabled={loading || !draft.trim()}>
-              Envoyer
+              Senden
             </button>
           </form>
         </aside>

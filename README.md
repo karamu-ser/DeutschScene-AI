@@ -10,18 +10,18 @@ The project is designed as a personal learning platform for A1/A2 German learner
 
 ## Features
 
-- AI-assisted document analysis for PDFs and images.
-- Vocabulary extraction with articles, translations, topics, and examples.
-- Flashcards with difficulty ratings for review practice.
-- Quiz generation, including German-to-French, French-to-German, articles, and listening exercises.
-- Pronunciation practice with speech recognition and AI feedback.
-- High-quality German text-to-speech with browser fallback.
-- AI-generated lesson summaries and German basics explanations.
-- Dialogue film mode for scene-based language practice.
-- AI conversation practice with level-based German replies, corrections, translations, and useful vocabulary.
-- Authenticated user accounts with JWT and bcrypt password hashing.
-- Progress dashboard with recent words, review items, statistics, and weak areas.
-- Production-oriented backend middleware: rate limiting, Helmet, CORS controls, logging, and Docker support.
+- KI-gestützte Dokumentanalyse für PDFs und Bilder.
+- Wortschatz-Extraktion mit Artikeln, Übersetzungen, Themen und Beispielen.
+- Lernkarten mit Schwierigkeitsbewertung für Wiederholungen.
+- Quiz-Generierung für Deutsch-Französisch, Französisch-Deutsch, Artikel und Hörübungen.
+- Aussprachetraining mit Spracherkennung und KI-Feedback.
+- Hochwertige deutsche Text-to-Speech-Ausgabe mit Browser-Fallback.
+- KI-generierte Zusammenfassungen und deutsche Grundlagen.
+- Dialogfilm-Modus für szenenbasiertes Sprachtraining.
+- AI Gespräch mit niveauangepassten deutschen Antworten, Korrekturen, Übersetzungen und nützlichem Wortschatz.
+- Authentifizierte Benutzerkonten mit JWT und bcrypt-Passwort-Hashing.
+- Lernübersicht mit neuen Wörtern, Wiederholungen, Statistiken und schwierigen Bereichen.
+- Produktionsorientiertes Backend: Rate Limiting, Helmet, CORS, Logging und Docker-Support.
 
 ## Demo
 
@@ -77,9 +77,9 @@ Or run each service manually from the `backend` and `frontend` folders as descri
 
 ![DeutschScene AI quiz page](docs/screenshots/quiz.png)
 
-### AI Conversation Practice
+### AI Gespräch
 
-![DeutschScene AI conversation practice page](docs/screenshots/conversation.png)
+![DeutschScene AI Gespräch page](docs/screenshots/conversation.png)
 
 ### Pronunciation
 
