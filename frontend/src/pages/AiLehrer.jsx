@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { aiLehrerQuestion, aiLehrerRespond, getLessons } from '../api/client';
+import { isDemoMode } from '../api/demoData';
 import { useRecognition, useSpeech } from '../hooks/useSpeech';
 import { SpeakButton } from './Summary';
 
@@ -93,7 +94,18 @@ export default function AiLehrer() {
     }
   };
 
+  const simulateDemoAnswer = () => {
+    if (loadingAnswer) return;
+    setError('');
+    setAnswer('Ich aus Marokko komme.');
+  };
+
   const handleMic = () => {
+    if (isDemoMode()) {
+      simulateDemoAnswer();
+      return;
+    }
+
     if (isListening) {
       stopListening();
       return;
@@ -197,8 +209,13 @@ export default function AiLehrer() {
                       {loadingAnswer ? 'AI Lehrer prüft...' : 'Antwort senden'}
                     </button>
                     <button className={`btn btn-ghost${isListening ? ' active' : ''}`} type="button" onClick={handleMic} disabled={loadingAnswer}>
-                      {isListening ? 'Stopp' : 'Mikrofon'}
+                      {isDemoMode() ? 'Demo Mikrofon' : isListening ? 'Stopp' : 'Mikrofon'}
                     </button>
+                    {isDemoMode() && (
+                      <button className="btn btn-ghost" type="button" onClick={simulateDemoAnswer} disabled={loadingAnswer}>
+                        Antwort simulieren
+                      </button>
+                    )}
                   </div>
                   {transcript && <div style={transcriptStyle}>{transcript}</div>}
                 </form>
