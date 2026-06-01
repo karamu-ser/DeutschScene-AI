@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api/client';
+import { DEMO_MODE_KEY, isDemoMode } from '../api/demoData';
 
 const AuthContext = createContext();
 
@@ -10,11 +11,16 @@ function getApiError(error, fallback) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(isDemoMode() ? demoUser() : null);
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isDemoMode());
 
   useEffect(() => {
+    if (isDemoMode()) {
+      setUser(demoUser());
+      setLoading(false);
+      return;
+    }
     if (token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchUser();
@@ -60,7 +66,17 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const startDemo = () => {
+    localStorage.setItem(DEMO_MODE_KEY, 'true');
+    localStorage.removeItem('token');
+    delete api.defaults.headers.common['Authorization'];
+    setToken(null);
+    setUser(demoUser());
+    setLoading(false);
+  };
+
   const logout = () => {
+    localStorage.removeItem(DEMO_MODE_KEY);
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
@@ -68,10 +84,19 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, register, login, logout, startDemo, isDemo: isDemoMode() }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+function demoUser() {
+  return {
+    id: 'demo',
+    email: 'demo@deutschscene.ai',
+    name: 'Demo User',
+    demo: true
+  };
 }
 
 export function useAuth() {

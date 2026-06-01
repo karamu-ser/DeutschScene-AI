@@ -58,7 +58,7 @@ const ICONS = {
 };
 
 function ProtectedLayout() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, isDemo } = useAuth();
 
   if (loading) {
     return <div className="auth-container"><div className="auth-card">Chargement...</div></div>;
@@ -84,7 +84,7 @@ function ProtectedLayout() {
         </nav>
         <div style={{padding:'16px 24px', borderTop:'1px solid var(--border)'}}>
           <p style={{fontSize:11, color:'var(--text-muted)', lineHeight:1.4}}>
-            {user.name || user.email}<br/><span style={{color:'var(--accent)'}}>A1/A2 Level</span>
+            {user.name || user.email}<br/><span style={{color:'var(--accent)'}}>{isDemo ? 'Demo Mode' : 'A1-C2 Level'}</span>
           </p>
           <button type="button" className="link-button" onClick={logout}>Déconnexion</button>
         </div>

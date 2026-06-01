@@ -10,7 +10,7 @@ export default function AuthPage() {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register, startDemo } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -31,6 +31,12 @@ export default function AuthPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDemo = () => {
+    setError('');
+    startDemo();
+    navigate('/');
   };
 
   return (
@@ -72,6 +78,12 @@ export default function AuthPage() {
             {loading ? 'Loading...' : isLogin ? 'Login' : 'Register'}
           </button>
         </form>
+
+        <div className="auth-divider"><span>or</span></div>
+
+        <button type="button" className="demo-button" onClick={handleDemo}>
+          Try Demo Without API Key
+        </button>
 
         <p>
           {isLogin ? "Don't have an account? " : 'Already have an account? '}

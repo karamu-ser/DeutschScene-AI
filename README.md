@@ -30,11 +30,22 @@ The project is designed as an all-level German learning platform, from A1 to C2,
 
 ## Demo
 
+Live demo:
+
+- Frontend: https://deutsch-scene-ai.vercel.app/
+- Click **Try Demo Without API Key** to explore the app without login, backend, or Gemini credentials.
+
 Local development:
 
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:3001/api`
 - Health check: `http://localhost:3001/api/health`
+
+Frontend-only demo:
+
+- Deploy the frontend on Vercel.
+- Use **Try Demo Without API Key** to open the app without login, backend, or Gemini credentials.
+- Authentication and the full backend API can be connected later for the production version.
 
 Run the full stack with Docker:
 
@@ -168,6 +179,7 @@ Backend:
 
 Tooling and deployment:
 
+- Vercel for the frontend demo
 - Docker
 - Docker Compose
 - Jest
@@ -277,6 +289,8 @@ Frontend variables in `frontend/.env`:
 VITE_API_URL=http://localhost:3001/api
 ```
 
+For the Vercel demo mode, `VITE_API_URL` is optional because **Try Demo Without API Key** uses local mock learning data in the browser.
+
 Security notes:
 
 - Never commit `.env` files.
@@ -288,7 +302,7 @@ Security notes:
 
 ### Short Term
 
-- Deploy a public demo.
+- Keep the Vercel frontend demo available without login.
 - Add preview media for the main learning flows.
 - Expand test coverage for the core API routes.
 
