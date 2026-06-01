@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getWords, checkPronunciation } from '../api/client';
+import { isDemoMode } from '../api/demoData';
 import { useSpeech, useRecognition } from '../hooks/useSpeech';
 import { Link } from 'react-router-dom';
 
@@ -24,6 +25,29 @@ export default function Pronunciation() {
   const current = words[index];
 
   const handleMic = () => {
+    if (isDemoMode()) {
+      if (!current) return;
+      setResult(null);
+      setChecking(true);
+      setTimeout(async () => {
+        const spoken = current.word.replace(/^(der|die|das)\s+/i, '');
+        try {
+          const res = await checkPronunciation({
+            word_id: current.id,
+            expected: current.word,
+            spoken,
+            context: 'demo'
+          });
+          setResult({ ...res.data, spoken });
+        } catch (e) {
+          setResult({ score: 86, feedback_fr: 'Demo pronunciation result.', spoken });
+        } finally {
+          setChecking(false);
+        }
+      }, 700);
+      return;
+    }
+
     if (isListening) {
       stopListening();
       return;
@@ -141,7 +165,7 @@ export default function Pronunciation() {
         {/* Mic button */}
         <div style={{ textAlign: 'center' }}>
           <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>
-            {isListening ? 'Ich höre zu...' : 'Clique pour répéter le mot'}
+            {isDemoMode() ? 'Demo Mode: clique pour simuler le micro' : isListening ? 'Ich höre zu...' : 'Clique pour répéter le mot'}
           </div>
           <div className={`mic-listener${isListening ? ' is-listening' : ''}`}>
             <span className="mic-ring" />
