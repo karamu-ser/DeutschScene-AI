@@ -2,9 +2,9 @@
 
 ## What is DeutschScene AI?
 
-DeutschScene AI is a full-stack web application for learning German from real documents and AI-generated practice material. It combines document import, vocabulary extraction, flashcards, quizzes, pronunciation feedback, text-to-speech, lesson summaries, and progress tracking in one authenticated learning workspace.
+DeutschScene AI transforms German course PDFs into structured lessons, flashcards, pronunciation practice, quizzes, animated dialogues, and personalized AI teacher sessions.
 
-Upload a PDF or image, let Gemini extract useful vocabulary and lesson content, then review it through flashcards, quizzes, pronunciation exercises, dialogue scenes, and dashboards.
+Unlike traditional flashcard apps, DeutschScene AI builds an interactive German teacher from your PDF. It asks questions, corrects your answers, remembers your mistakes, and creates targeted practice sessions.
 
 The project is designed as an all-level German learning platform, from A1 to C2, with a React frontend and a secured Express API.
 
