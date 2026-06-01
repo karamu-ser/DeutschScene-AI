@@ -6,7 +6,7 @@ DeutschScene AI is a full-stack web application for learning German from real do
 
 Upload a PDF or image, let Gemini extract useful vocabulary and lesson content, then review it through flashcards, quizzes, pronunciation exercises, dialogue scenes, and dashboards.
 
-The project is designed as a personal learning platform for A1/A2 German learners, with a React frontend and a secured Express API.
+The project is designed as an all-level German learning platform, from A1 to C2, with a React frontend and a secured Express API.
 
 ## Features
 
