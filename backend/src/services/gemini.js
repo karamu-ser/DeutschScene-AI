@@ -574,7 +574,7 @@ ${JSON.stringify(payload).slice(0, 25000)}
   }
 }
 
-async function generateAiLehrerReply({ lessonContent, userAnswer, expectedAnswer, history = [], level = 'A1' }) {
+async function generateAiLehrerReply({ lessonContent, userAnswer, expectedAnswer, question = null, history = [], level = 'A1' }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
 
@@ -583,6 +583,7 @@ async function generateAiLehrerReply({ lessonContent, userAnswer, expectedAnswer
   const payload = {
     level: normalizedLevel,
     lessonContent,
+    question,
     userAnswer,
     expectedAnswer,
     history: history.slice(-8)
@@ -591,10 +592,15 @@ async function generateAiLehrerReply({ lessonContent, userAnswer, expectedAnswer
   const prompt = `
 Tu es "AI Lehrer", un professeur d'allemand patient construit a partir d'une lecon PDF.
 
+Flux pedagogique:
+- Une question a deja ete posee a l'utilisateur.
+- Tu dois verifier sa reponse, donner un feedback, et creer une petite Practice Session si une erreur existe.
+- Ne pose pas une nouvelle question dans cette reponse. La prochaine question sera demandee apres la pratique.
+
 Priorite absolue:
 1. Utilise d'abord le vocabulaire, les regles, les exemples et dialogues de lessonContent.
-2. Si tu ajoutes un mini exercice, il doit etre marque from_pdf:false et based_on_pdf:true.
-3. Ne passe pas trop vite a la suite: corrige, fais repeter, puis propose un mini exercice.
+2. Si tu ajoutes une Practice Session, elle doit etre marquee from_pdf:false et based_on_pdf:true.
+3. Ne passe pas trop vite a la suite: corrige, fais repeter, puis propose une pratique ciblee.
 4. Adapte la difficulte au niveau ${normalizedLevel}.
 5. Explique en francais simple, avec allemand exact pour la phrase correcte.
 
@@ -602,25 +608,38 @@ Retourne UNIQUEMENT ce JSON valide:
 {
   "mode": "gemini",
   "level": "${normalizedLevel}",
+  "is_correct": false,
+  "score": 0,
   "feedback_fr": "correction simple en francais",
   "feedback_ar": "شرح قصير بالعربية",
   "correct_answer": "phrase correcte attendue",
-  "repeat_prompt": "phrase courte demandant de repeter",
   "mistake": {
     "mistake_type": "word_order/conjugation/article/plural/vocabulary/pronunciation/spelling/wrong_preposition/wrong_case/missing_verb/wrong_w_question",
     "expected": "phrase attendue",
     "user_answer": "reponse utilisateur",
     "related_rule": "regle du PDF si disponible"
   },
-  "next_exercise": {
-    "type": "word_order/fill_blank/translate/article/conjugation",
-    "prompt_fr": "consigne en francais",
-    "prompt_de": "consigne en allemand ou null",
-    "answer": "reponse attendue",
+  "practice_session": {
+    "title": "Practice Session",
+    "focus": "type d'erreur",
+    "related_rule": "regle liee",
+    "exercises": [
+      {
+        "id": "practice-1",
+        "type": "word_order/fill_blank/translate/article/conjugation/rewrite",
+        "prompt_fr": "consigne en francais",
+        "prompt_de": "consigne en allemand ou null",
+        "answer": "reponse attendue",
+        "from_pdf": false,
+        "based_on_pdf": true
+      }
+    ],
     "from_pdf": false,
     "based_on_pdf": true
   }
 }
+
+Si la reponse est correcte, mets is_correct:true, score entre 90 et 100, mistake:{}, et practice_session avec exercises:[].
 
 Contexte JSON:
 ${JSON.stringify(payload).slice(0, 45000)}

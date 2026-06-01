@@ -6,6 +6,27 @@ const { generateAiLehrerReply } = require('../services/gemini');
 
 const router = express.Router();
 
+router.post('/question', async (req, res) => {
+  const lessonContent = getLessonContent(req.userId, req.body.lesson_id);
+  if (!lessonContent) return res.status(404).json({ error: 'Leçon non trouvée.' });
+
+  const level = req.body.level || lessonContent.lesson.level || 'A1';
+  const question = buildAiLehrerQuestion({ lessonContent, level });
+
+  saveGeneratedContent({
+    userId: req.userId,
+    lessonId: lessonContent.lesson.id,
+    type: 'ai_lehrer_question',
+    title: 'AI Lehrer question',
+    content: question,
+    fromPdf: question.from_pdf,
+    basedOnPdf: true,
+    generatedBy: 'mock'
+  });
+
+  res.json(question);
+});
+
 router.post('/mock', (req, res) => {
   const lessonContent = getLessonContent(req.userId, req.body.lesson_id);
   if (!lessonContent) return res.status(404).json({ error: 'Leçon non trouvée.' });
@@ -32,7 +53,8 @@ router.post('/respond', async (req, res) => {
     const response = buildMockAiLehrerResponse({
       lessonContent,
       userAnswer,
-      expectedAnswer: req.body.expected_answer,
+      expectedAnswer: req.body.expected_answer || req.body.question?.expected_answer,
+      question: req.body.question,
       level: req.body.level
     });
     persistAiLehrerResult(req.userId, lessonContent.lesson.id, response);
@@ -43,19 +65,33 @@ router.post('/respond', async (req, res) => {
     const response = await generateAiLehrerReply({
       lessonContent,
       userAnswer,
-      expectedAnswer: req.body.expected_answer,
+      expectedAnswer: req.body.expected_answer || req.body.question?.expected_answer,
+      question: req.body.question,
       history: req.body.history,
       level: req.body.level || lessonContent.lesson.level
     });
-    const normalized = normalizeAiLehrerResponse(response, userAnswer, req.body.expected_answer, lessonContent);
+    const normalized = normalizeAiLehrerResponse(
+      response,
+      userAnswer,
+      req.body.expected_answer || req.body.question?.expected_answer,
+      lessonContent,
+      req.body.question
+    );
     persistAiLehrerResult(req.userId, lessonContent.lesson.id, normalized);
     res.json(normalized);
   } catch (err) {
     console.error('AI Lehrer error:', err);
-    res.status(503).json({
-      error: 'AI Lehrer Gemini indisponible. Utilise /api/ai-lehrer/mock ou { "mock": true } pour le mode demo.',
-      details: process.env.NODE_ENV === 'production' ? undefined : err.message
+    const fallback = buildMockAiLehrerResponse({
+      lessonContent,
+      userAnswer,
+      expectedAnswer: req.body.expected_answer || req.body.question?.expected_answer,
+      question: req.body.question,
+      level: req.body.level || lessonContent.lesson.level
     });
+    fallback.mode = 'mock_fallback';
+    fallback.warning = 'Gemini indisponible, correction locale utilisée.';
+    persistAiLehrerResult(req.userId, lessonContent.lesson.id, fallback);
+    res.json(fallback);
   }
 });
 
@@ -82,71 +118,191 @@ function persistAiLehrerResult(userId, lessonId, response) {
   });
 }
 
-function normalizeAiLehrerResponse(response, userAnswer, expectedAnswer, lessonContent) {
-  const mock = buildMockAiLehrerResponse({ lessonContent, userAnswer, expectedAnswer });
+function normalizeAiLehrerResponse(response, userAnswer, expectedAnswer, lessonContent, question) {
+  const mock = buildMockAiLehrerResponse({ lessonContent, userAnswer, expectedAnswer, question });
+  const isCorrect = typeof response.is_correct === 'boolean' ? response.is_correct : mock.is_correct;
   return {
     ...mock,
     ...response,
     mode: response.mode || 'gemini',
-    mistake: {
-      ...mock.mistake,
-      ...(response.mistake || {}),
-      user_answer: response.mistake?.user_answer || userAnswer
-    },
-    next_exercise: {
-      ...mock.next_exercise,
-      ...(response.next_exercise || {}),
-      from_pdf: false,
-      based_on_pdf: true
-    }
+    is_correct: isCorrect,
+    score: Number.isFinite(Number(response.score)) ? Number(response.score) : mock.score,
+    mistake: isCorrect
+      ? {}
+      : {
+        ...mock.mistake,
+        ...(response.mistake || {}),
+        user_answer: response.mistake?.user_answer || userAnswer
+      },
+    practice_session: isCorrect
+      ? {
+        ...mock.practice_session,
+        exercises: [],
+        from_pdf: false,
+        based_on_pdf: true
+      }
+      : {
+        ...mock.practice_session,
+        ...(response.practice_session || response.next_exercise || {}),
+        from_pdf: false,
+        based_on_pdf: true
+      },
+    next_exercise: undefined
   };
 }
 
-function buildMockAiLehrerResponse({ lessonContent, userAnswer, expectedAnswer, level }) {
+function buildAiLehrerQuestion({ lessonContent, level }) {
+  const expected = findExpectedSentence(lessonContent);
+  const relatedRule = findRelatedRule(lessonContent, expected);
+  const skill = inferMistakeType({
+    expected,
+    userAnswer: '',
+    relatedRule,
+    fallback: 'word_order'
+  });
+  const topic = lessonContent.lesson.topic || lessonContent.lesson.title || 'die Lektion';
+  const questionDe = buildQuestionText({ level, expected, topic, skill });
+
+  return {
+    question_id: `ai-lehrer-${lessonContent.lesson.id}-${Date.now()}`,
+    question_de: questionDe,
+    expected_answer: expected,
+    skill,
+    related_rule: relatedRule,
+    source: lessonContent.lesson.title || 'PDF lesson',
+    from_pdf: true
+  };
+}
+
+function buildMockAiLehrerResponse({ lessonContent, userAnswer, expectedAnswer, question, level }) {
   const expected = String(expectedAnswer || findExpectedSentence(lessonContent) || '').trim();
   const answer = String(userAnswer || '').trim();
-  const relatedRule = findRelatedRule(lessonContent, expected);
+  const relatedRule = question?.related_rule || findRelatedRule(lessonContent, expected);
   const mistakeType = inferMistakeType({
     expected,
     userAnswer: answer,
     relatedRule,
-    fallback: 'word_order'
+    fallback: question?.skill || 'word_order'
   });
-  const words = expected
-    .replace(/[.!?]/g, '')
-    .split(/\s+/)
-    .filter(Boolean);
+  const isCorrect = answersMatch(answer, expected);
+  const score = isCorrect ? 100 : scoreAnswer(answer, expected);
+  const mistake = !isCorrect
+    ? {
+      mistake_type: mistakeType,
+      expected,
+      user_answer: answer,
+      related_rule: relatedRule
+    }
+    : {};
+  const practiceSession = isCorrect
+    ? {
+      title: 'Practice Session',
+      focus: mistakeType,
+      related_rule: relatedRule,
+      exercises: [],
+      from_pdf: false,
+      based_on_pdf: true
+    }
+    : buildPracticeSession({
+      mistakeType,
+      expected,
+      userAnswer: answer,
+      relatedRule
+    });
 
   return {
     mode: 'mock',
     level: level || lessonContent.lesson.level || 'A1',
-    feedback_fr: expected && answer.toLowerCase() !== expected.toLowerCase()
-      ? `Presque correct. ${relatedRule || 'Regarde bien l’ordre et la forme des mots.'} La phrase correcte est : ${expected}`
-      : `Très bien. La phrase est correcte : ${expected || answer}`,
-    feedback_ar: expected && answer.toLowerCase() !== expected.toLowerCase()
-      ? `قريب من الصحيح. الجملة الصحيحة هي: ${expected}`
-      : `جيد جدا. الجملة صحيحة.`,
+    is_correct: isCorrect,
+    score,
+    feedback_fr: !isCorrect
+      ? `Presque. ${relatedRule || 'Regarde la forme correcte.'} La bonne réponse est : ${expected}`
+      : `Très bien. Ta réponse est correcte : ${expected || answer}`,
+    feedback_ar: !isCorrect
+      ? `قريب من الصحيح. الجواب الصحيح هو: ${expected}`
+      : `جيد جدا. جوابك صحيح.`,
     correct_answer: expected || answer,
-    repeat_prompt: `Répète cette phrase : ${expected || answer}`,
-    mistake: expected && answer.toLowerCase() !== expected.toLowerCase()
-      ? {
-        mistake_type: mistakeType,
-        expected,
-        user_answer: answer,
-        related_rule: relatedRule
-      }
-      : null,
-    next_exercise: {
-      type: mistakeType === 'article' ? 'article' : 'word_order',
-      prompt_fr: words.length
-        ? `Remets les mots dans le bon ordre : ${shuffle(words).join(' / ')}`
-        : 'Réécris la phrase correctement.',
-      prompt_de: null,
-      answer: expected || answer,
-      from_pdf: false,
-      based_on_pdf: true
-    }
+    mistake,
+    practice_session: practiceSession
   };
+}
+
+function buildQuestionText({ level, expected, topic, skill }) {
+  if (skill === 'article') return 'Welcher Artikel passt? Antworte mit der ganzen Wortgruppe.';
+  if (skill === 'conjugation') return 'Bilde einen kurzen Satz mit dem richtigen Verb.';
+  if (level === 'A1' || level === 'A2') {
+    return `Antworte auf Deutsch mit einem einfachen Satz: ${simplePromptFromExpected(expected, topic)}`;
+  }
+  if (level === 'B1' || level === 'B2') {
+    return `Antworte auf Deutsch in zwei Sätzen zum Thema "${topic}". Nutze die Struktur aus der Lektion.`;
+  }
+  return `Formuliere eine präzise Antwort auf Deutsch zum Thema "${topic}" und verwende eine passende Struktur aus der Lektion.`;
+}
+
+function simplePromptFromExpected(expected, topic) {
+  const lower = String(expected || '').toLowerCase();
+  if (lower.includes('komme') || lower.includes('aus')) return 'Woher kommst du?';
+  if (lower.includes('heiße') || lower.includes('ich bin')) return 'Wie heißt du?';
+  if (lower.includes('wohne')) return 'Wo wohnst du?';
+  if (lower.includes('familie')) return 'Erzähl etwas über deine Familie.';
+  return `Was sagst du zu "${topic}"?`;
+}
+
+function buildPracticeSession({ mistakeType, expected, userAnswer, relatedRule }) {
+  const words = expected
+    .replace(/[.!?]/g, '')
+    .split(/\s+/)
+    .filter(Boolean);
+  const exercise = mistakeType === 'word_order' && words.length > 1
+    ? {
+      type: 'word_order',
+      prompt_fr: `Remets les mots dans le bon ordre : ${shuffle(words).join(' / ')}`,
+      prompt_de: 'Bringe die Wörter in die richtige Reihenfolge.',
+      answer: expected
+    }
+    : {
+      type: mistakeType === 'article' ? 'article' : 'rewrite',
+      prompt_fr: `Corrige cette phrase : ${userAnswer || expected}`,
+      prompt_de: 'Schreibe den Satz richtig.',
+      answer: expected
+    };
+
+  return {
+    title: 'Practice Session',
+    focus: mistakeType,
+    related_rule: relatedRule,
+    exercises: [
+      {
+        id: 'practice-1',
+        ...exercise,
+        from_pdf: false,
+        based_on_pdf: true
+      }
+    ],
+    from_pdf: false,
+    based_on_pdf: true
+  };
+}
+
+function scoreAnswer(answer, expected) {
+  const expectedTokens = normalizeForCompare(expected).split(' ').filter(Boolean);
+  const answerTokens = normalizeForCompare(answer).split(' ').filter(Boolean);
+  if (!expectedTokens.length || !answerTokens.length) return 0;
+  const answerSet = new Set(answerTokens);
+  const overlap = expectedTokens.filter(token => answerSet.has(token)).length;
+  return Math.round((overlap / expectedTokens.length) * 70);
+}
+
+function answersMatch(answer, expected) {
+  return normalizeForCompare(answer) === normalizeForCompare(expected);
+}
+
+function normalizeForCompare(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function findExpectedSentence(lessonContent) {
