@@ -24,27 +24,31 @@ export default function Pronunciation() {
 
   const current = words[index];
 
+  const simulateDemoPronunciation = () => {
+    if (!current || checking) return;
+    setResult(null);
+    setChecking(true);
+    setTimeout(async () => {
+      const spoken = current.word.replace(/^(der|die|das)\s+/i, '');
+      try {
+        const res = await checkPronunciation({
+          word_id: current.id,
+          expected: current.word,
+          spoken,
+          context: 'demo'
+        });
+        setResult({ ...res.data, spoken });
+      } catch (e) {
+        setResult({ score: 86, feedback_fr: 'Demo pronunciation result.', spoken });
+      } finally {
+        setChecking(false);
+      }
+    }, 500);
+  };
+
   const handleMic = () => {
     if (isDemoMode()) {
-      if (!current) return;
-      setResult(null);
-      setChecking(true);
-      setTimeout(async () => {
-        const spoken = current.word.replace(/^(der|die|das)\s+/i, '');
-        try {
-          const res = await checkPronunciation({
-            word_id: current.id,
-            expected: current.word,
-            spoken,
-            context: 'demo'
-          });
-          setResult({ ...res.data, spoken });
-        } catch (e) {
-          setResult({ score: 86, feedback_fr: 'Demo pronunciation result.', spoken });
-        } finally {
-          setChecking(false);
-        }
-      }, 700);
+      simulateDemoPronunciation();
       return;
     }
 
@@ -186,6 +190,13 @@ export default function Pronunciation() {
               )}
             </button>
           </div>
+          {isDemoMode() && (
+            <div style={{ marginTop: 14 }}>
+              <button className="btn btn-primary" type="button" onClick={simulateDemoPronunciation} disabled={checking}>
+                {checking ? 'Simulation...' : 'Simuler la prononciation'}
+              </button>
+            </div>
+          )}
         </div>
 
         {micError && (
