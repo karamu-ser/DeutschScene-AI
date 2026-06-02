@@ -737,59 +737,100 @@ ${JSON.stringify(lessonContent).slice(0, 45000)}
   }
 }
 
-async function matchLessonToExisting(analyzedLesson, existingLessons) {
+function normalizeTextForComparison(text) {
+  if (!text) return '';
+  return String(text)
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function areTopicsSimilar(topic1, topic2, similarity_threshold = 0.6) {
+  if (!topic1 || !topic2) return false;
+  const t1 = normalizeTextForComparison(topic1);
+  const t2 = normalizeTextForComparison(topic2);
+  
+  if (t1 === t2) return true;
+  
+  // Check if topics share key words
+  const words1 = new Set(t1.split(/\s+/));
+  const words2 = new Set(t2.split(/\s+/));
+  const intersection = [...words1].filter(w => words2.has(w) && w.length > 3);
+  const union = new Set([...words1, ...words2]);
+  const jaccard = intersection.length / union.size;
+  
+  return jaccard >= similarity_threshold;
+}
+
+function matchLessonToExistingDirect(analyzedLesson, existingLessons) {
+  // 🔧 STRICT MATCHING LOGIC (not AI-based, rule-based)
+  // Only merge if:
+  // 1. Same level
+  // 2. Same or very similar topic
+  // 3. Same unit (if specified)
+  
   if (!existingLessons || existingLessons.length === 0) {
     return { should_merge: false, existing_lesson_id: null, confidence: 0, reason: 'No existing lessons' };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const newLevel = analyzedLesson.lesson?.level || 'A1';
+  const newTopic = analyzedLesson.lesson?.topic;
+  const newUnit = analyzedLesson.lesson?.unit;
+  const newTitle = analyzedLesson.lesson?.title;
 
-  const prompt = `Tu es un assistant de gestion de leçons d'allemand. Analyse si le PDF importé appartient à une leçon existante.
+  for (const existing of existingLessons) {
+    // RULE 1: Level must match
+    if (existing.level !== newLevel) {
+      console.log(`❌ Level mismatch: ${existing.level} vs ${newLevel}`);
+      continue;
+    }
 
-PDF ANALYSÉ :
-- Titre: ${analyzedLesson.lesson?.title}
-- Niveau: ${analyzedLesson.lesson?.level}
-- Topic: ${analyzedLesson.lesson?.topic}
-- Unit: ${analyzedLesson.lesson?.unit}
-- Mots: ${(analyzedLesson.vocabulary || []).length}
-- Règles grammaire: ${(analyzedLesson.grammar || []).length}
-- Dialogues: ${(analyzedLesson.dialogues || []).length}
+    // RULE 2: Topic must be same or very similar
+    if (!newTopic && !existing.topic) {
+      // Both have no topic - only merge if title is very similar
+      const titleSim = normalizeTextForComparison(existing.title) === normalizeTextForComparison(newTitle);
+      if (!titleSim) {
+        console.log(`❌ No topic and different title: "${existing.title}" vs "${newTitle}"`);
+        continue;
+      }
+    } else if (newTopic && existing.topic) {
+      const topicMatch = areTopicsSimilar(existing.topic, newTopic, 0.7);
+      if (!topicMatch) {
+        console.log(`❌ Topic mismatch: "${existing.topic}" vs "${newTopic}"`);
+        continue;
+      }
+    } else {
+      // One has topic, other doesn't - don't merge
+      console.log(`❌ Topic presence mismatch: "${existing.topic}" vs "${newTopic}"`);
+      continue;
+    }
 
-LEÇONS EXISTANTES :
-${existingLessons.map((l, i) => `${i}. ID=${l.id}: "${l.title}" | Niveau=${l.level} | Topic=${l.topic} | Unit=${l.unit}`).join('\n')}
+    // RULE 3: Unit must match if both are specified
+    if (existing.unit && newUnit && existing.unit !== newUnit) {
+      console.log(`❌ Unit mismatch: ${existing.unit} vs ${newUnit}`);
+      continue;
+    }
 
-DÉCISION À PRENDRE :
-1. Le PDF est-il une CONTINUATION ou EXTENSION d'une leçon existante? (même sujet, même niveau, contenu complémentaire)
-2. Ou est-ce une NOUVELLE leçon indépendante?
-
-Retourne UNIQUEMENT ce JSON :
-{
-  "should_merge": true/false,
-  "existing_lesson_id": null ou le ID de la leçon existante,
-  "confidence": 0-100 (% de certitude),
-  "reason": "explication courte"
-}
-
-Critères de fusion :
-- Même niveau (A1, A2, etc.) ou niveau compatible
-- Même topic ou sujet connexe
-- Le nouveau PDF apporte du contenu complémentaire (plus de vocabulaire, plus d'exercices, etc.)
-
-🔴 NE FUSIONNE PAS si :
-- Les sujets sont très différents
-- Les niveaux ne correspondent pas (A1 vs B2)
-- Le PDF introduit des concepts totalement nouveaux`;
-
-  const result = await generateContent(model, prompt);
-  const clean = cleanJSON(result.response.text());
-  try {
-    return JSON.parse(clean);
-  } catch (e) {
-    console.error('Match parse error:', clean.substring(0, 300));
-    return { should_merge: false, existing_lesson_id: null, confidence: 0, reason: 'Error parsing AI response' };
+    // All rules passed - MERGE!
+    console.log(`✅ MERGE: Found matching lesson ${existing.id} for "${newTitle}"`);
+    return {
+      should_merge: true,
+      existing_lesson_id: existing.id,
+      confidence: 95,
+      reason: `Même niveau (${newLevel}), même sujet (${newTopic})`
+    };
   }
+
+  // No match found
+  return {
+    should_merge: false,
+    existing_lesson_id: null,
+    confidence: 0,
+    reason: 'Aucune leçon existante correspondante (niveau, sujet)'
+  };
 }
 
 module.exports = {
@@ -804,5 +845,5 @@ module.exports = {
   generateConversationReply,
   generateAiLehrerReply,
   generateStoryFromLesson,
-  matchLessonToExisting
+  matchLessonToExistingDirect
 };

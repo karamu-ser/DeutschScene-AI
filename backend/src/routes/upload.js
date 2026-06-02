@@ -2,7 +2,7 @@ const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
-const { analyzeLessonFile, analyzeLessonText, summarizeLessonsForReview, generateGermanBasics, generateDialogueFilmScene, matchLessonToExisting } = require('../services/gemini');
+const { analyzeLessonFile, analyzeLessonText, summarizeLessonsForReview, generateGermanBasics, generateDialogueFilmScene, matchLessonToExistingDirect } = require('../services/gemini');
 const { query, run } = require('../services/db');
 
 const router = express.Router();
@@ -878,7 +878,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       });
     }
 
-    // 🔧 AI DECISION: Ask Gemini if this PDF belongs to an existing lesson
+    // 🔧 STRICT MATCHING: Check if PDF belongs to an existing lesson (rule-based, not AI)
     const existingLessonsRaw = query(
       'SELECT id, title, level, unit, topic FROM lessons WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
       [req.userId]
@@ -886,32 +886,16 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     let lessonId, merged_with_existing_lesson = false;
 
-    // If there are existing lessons, ask Gemini to decide
+    // Use strict rule-based matching
     if (existingLessonsRaw.length > 0) {
-      try {
-        const aiMatch = await matchLessonToExisting(lesson, existingLessonsRaw);
-        if (aiMatch.should_merge && aiMatch.existing_lesson_id && aiMatch.confidence >= 70) {
-          // Merge with existing lesson
-          lessonId = aiMatch.existing_lesson_id;
-          merged_with_existing_lesson = true;
-          console.log(`✅ Merging with existing lesson ${lessonId} (confidence: ${aiMatch.confidence}%)`);
-        } else {
-          // Create new lesson
-          const lessonMeta = {
-            title: lesson.lesson?.title || 'Leçon sans titre',
-            level: lesson.lesson?.level || 'A1',
-            unit: lesson.lesson?.unit || null,
-            topic: lesson.lesson?.topic || null,
-            objectives: lesson.lesson?.objectives || []
-          };
-          const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
-          lessonId = result.lessonId;
-          merged_with_existing_lesson = result.merged;
-          console.log(`📌 Created new lesson ${lessonId} (Gemini confidence: ${aiMatch.confidence}%)`);
-        }
-      } catch (e) {
-        console.error('AI matching error, falling back to standard logic:', e.message);
-        // Fallback to standard getOrCreateLesson
+      const match = matchLessonToExistingDirect(lesson, existingLessonsRaw);
+      if (match.should_merge && match.existing_lesson_id) {
+        // Merge with existing lesson
+        lessonId = match.existing_lesson_id;
+        merged_with_existing_lesson = true;
+        console.log(`✅ MERGING with existing lesson ${lessonId}: ${match.reason}`);
+      } else {
+        // Create new lesson
         const lessonMeta = {
           title: lesson.lesson?.title || 'Leçon sans titre',
           level: lesson.lesson?.level || 'A1',
@@ -922,6 +906,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
         lessonId = result.lessonId;
         merged_with_existing_lesson = result.merged;
+        console.log(`📌 CREATING NEW lesson ${lessonId}: ${match.reason}`);
       }
     } else {
       // No existing lessons, create new
@@ -935,6 +920,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
       lessonId = result.lessonId;
       merged_with_existing_lesson = result.merged;
+      console.log(`📌 FIRST lesson created ${lessonId}`);
     }
 
     // ── Save vocabulary ───────────────────────────────────────────────
