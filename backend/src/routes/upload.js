@@ -2,7 +2,7 @@ const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
-const { analyzeLessonFile, analyzeLessonText, summarizeLessonsForReview, generateGermanBasics, generateDialogueFilmScene } = require('../services/gemini');
+const { analyzeLessonFile, analyzeLessonText, summarizeLessonsForReview, generateGermanBasics, generateDialogueFilmScene, matchLessonToExisting } = require('../services/gemini');
 const { query, run } = require('../services/db');
 
 const router = express.Router();
@@ -843,20 +843,28 @@ router.post('/', upload.single('file'), async (req, res) => {
     let lesson;
 
     if (mimetype === 'application/pdf') {
-      try {
-        const pdfParse = require('pdf-parse');
-        const data = await pdfParse(fileBuffer);
-        const extractedText = String(data.text || '').trim();
-        if (extractedText.length >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)) {
-          lesson = await analyzeLessonText(extractedText);
-          if (isEmptyDocumentAnalysis(lesson)) {
-            lesson = await analyzeLessonFile(fileBuffer, mimetype);
+      // 🔧 PRIORITÉ: Analyse directe du PDF par Gemini (plus complète qu'extraction texte)
+      // Gemini a meilleur OCR et comprend mieux la structure PDF
+      lesson = await analyzeLessonFile(fileBuffer, mimetype);
+      
+      // Si le résultat semble incomplet, essayer l'extraction texte comme fallback
+      if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
+        try {
+          const pdfParse = require('pdf-parse');
+          const data = await pdfParse(fileBuffer);
+          const extractedText = String(data.text || '').trim();
+          if (extractedText.length >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)) {
+            const textLesson = await analyzeLessonText(extractedText);
+            // Compare and use the lesson with more content
+            const origCount = lessonContentCount(lesson);
+            const textCount = lessonContentCount(textLesson);
+            if (textCount > origCount) {
+              lesson = textLesson;
+            }
           }
-        } else {
-          lesson = await analyzeLessonFile(fileBuffer, mimetype);
+        } catch {
+          // Keep the PDF analysis result
         }
-      } catch {
-        lesson = await analyzeLessonFile(fileBuffer, mimetype);
       }
     } else {
       lesson = await analyzeLessonFile(fileBuffer, mimetype);
@@ -866,19 +874,68 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
       return res.status(422).json({
-        error: 'Le PDF semble être un document image/scanné et aucune leçon exploitable n’a été extraite. Réessaie après OCR, ou utilise un modèle Gemini qui accepte bien les PDF/image.'
+        error: 'Le PDF semble vide ou ne contient pas d\'informations pédagogiques. Réessaie avec un PDF contenant du texte allemand.'
       });
     }
 
-    // ── Save lesson metadata ──────────────────────────────────────────
-    const lessonMeta = {
-      title: lesson.lesson?.title || 'Leçon sans titre',
-      level: lesson.lesson?.level || 'A1',
-      unit: lesson.lesson?.unit || null,
-      topic: lesson.lesson?.topic || null,
-      objectives: lesson.lesson?.objectives || []
-    };
-    const { lessonId, merged: merged_with_existing_lesson } = getOrCreateLesson(req.userId, lessonMeta, lesson);
+    // 🔧 AI DECISION: Ask Gemini if this PDF belongs to an existing lesson
+    const existingLessonsRaw = query(
+      'SELECT id, title, level, unit, topic FROM lessons WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
+      [req.userId]
+    );
+
+    let lessonId, merged_with_existing_lesson = false;
+
+    // If there are existing lessons, ask Gemini to decide
+    if (existingLessonsRaw.length > 0) {
+      try {
+        const aiMatch = await matchLessonToExisting(lesson, existingLessonsRaw);
+        if (aiMatch.should_merge && aiMatch.existing_lesson_id && aiMatch.confidence >= 70) {
+          // Merge with existing lesson
+          lessonId = aiMatch.existing_lesson_id;
+          merged_with_existing_lesson = true;
+          console.log(`✅ Merging with existing lesson ${lessonId} (confidence: ${aiMatch.confidence}%)`);
+        } else {
+          // Create new lesson
+          const lessonMeta = {
+            title: lesson.lesson?.title || 'Leçon sans titre',
+            level: lesson.lesson?.level || 'A1',
+            unit: lesson.lesson?.unit || null,
+            topic: lesson.lesson?.topic || null,
+            objectives: lesson.lesson?.objectives || []
+          };
+          const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
+          lessonId = result.lessonId;
+          merged_with_existing_lesson = result.merged;
+          console.log(`📌 Created new lesson ${lessonId} (Gemini confidence: ${aiMatch.confidence}%)`);
+        }
+      } catch (e) {
+        console.error('AI matching error, falling back to standard logic:', e.message);
+        // Fallback to standard getOrCreateLesson
+        const lessonMeta = {
+          title: lesson.lesson?.title || 'Leçon sans titre',
+          level: lesson.lesson?.level || 'A1',
+          unit: lesson.lesson?.unit || null,
+          topic: lesson.lesson?.topic || null,
+          objectives: lesson.lesson?.objectives || []
+        };
+        const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
+        lessonId = result.lessonId;
+        merged_with_existing_lesson = result.merged;
+      }
+    } else {
+      // No existing lessons, create new
+      const lessonMeta = {
+        title: lesson.lesson?.title || 'Leçon sans titre',
+        level: lesson.lesson?.level || 'A1',
+        unit: lesson.lesson?.unit || null,
+        topic: lesson.lesson?.topic || null,
+        objectives: lesson.lesson?.objectives || []
+      };
+      const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
+      lessonId = result.lessonId;
+      merged_with_existing_lesson = result.merged;
+    }
 
     // ── Save vocabulary ───────────────────────────────────────────────
     const savedWords = [];

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { getWords, getTopics, deleteWord } from '../api/client';
 import { useSpeech } from '../hooks/useSpeech';
 import { Link } from 'react-router-dom';
@@ -9,6 +10,9 @@ export default function Vocabulary() {
   const [topics, setTopics] = useState([]);
   const [search, setSearch] = useState('');
   const [topicFilter, setTopicFilter] = useState('');
+  const [studyMode, setStudyMode] = useState(false);
+  const [studyPaused, setStudyPaused] = useState(false);
+  const [studyIndex, setStudyIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const { speak } = useSpeech();
 
@@ -30,6 +34,20 @@ export default function Vocabulary() {
     const matchTopic = !topicFilter || w.topic === topicFilter;
     return matchSearch && matchTopic;
   });
+
+  useEffect(() => {
+    setStudyIndex(0);
+  }, [search, topicFilter]);
+
+  useEffect(() => {
+    if (!studyMode || studyPaused || filtered.length <= 1) return undefined;
+    const timer = setInterval(() => {
+      setStudyIndex(current => (current + 1) % filtered.length);
+    }, 3200);
+    return () => clearInterval(timer);
+  }, [studyMode, studyPaused, filtered.length]);
+
+  const studyWord = filtered[studyIndex % Math.max(filtered.length, 1)];
 
   const handleDelete = async (id) => {
     if (!confirm('Supprimer ce mot ?')) return;
@@ -70,10 +88,119 @@ export default function Vocabulary() {
         <button className="btn btn-primary btn-sm" onClick={handleDownloadPdf} disabled={filtered.length === 0}>
           Télécharger PDF
         </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setStudyMode(value => !value)} disabled={filtered.length === 0}>
+          {studyMode ? 'Masquer animation' : 'Mode mémorisation'}
+        </button>
         <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 13, alignSelf: 'center' }}>
           {filtered.length} résultat{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
+
+      {studyMode && studyWord && (
+        <motion.section
+          className="card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ marginBottom: 24, overflow: 'hidden' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: 'var(--accent)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                Animation mémorisation
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                Regarde le mot, sa traduction et son exemple. Le changement automatique aide la répétition.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setStudyPaused(value => !value)}>
+                {studyPaused ? 'Reprendre' : 'Pause'}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setStudyIndex(current => (current + 1) % filtered.length)}>
+                Suivant
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => speak(studyWord.word)}>
+                Écouter
+              </button>
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={studyWord.id || `${studyWord.word}-${studyIndex}`}
+              initial={{ opacity: 0, x: 26, scale: 0.98 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -26, scale: 0.98 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(220px, 0.9fr) minmax(260px, 1.1fr)',
+                gap: 18,
+                alignItems: 'stretch'
+              }}
+            >
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 22 }}>
+                {studyWord.article && (
+                  <span className={`card-article article-${studyWord.article}`} style={{ marginBottom: 10, display: 'inline-block' }}>
+                    {studyWord.article}
+                  </span>
+                )}
+                <motion.div
+                  initial={{ y: 8 }}
+                  animate={{ y: 0 }}
+                  style={{ fontFamily: 'var(--font-display)', fontSize: 42, lineHeight: 1.1, marginBottom: 10 }}
+                >
+                  {studyWord.word.replace(/^(der|die|das)\s+/i, '')}
+                </motion.div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                  {studyWord.type || 'mot'}{studyWord.topic ? ` · ${studyWord.topic}` : ''}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: 10 }}>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12 }}
+                  style={{ background: 'var(--accent-dim)', border: '1px solid rgba(232,197,71,0.25)', borderRadius: 'var(--radius)', padding: 16 }}
+                >
+                  <div style={{ color: 'var(--accent)', fontSize: 12, marginBottom: 4 }}>Français</div>
+                  <strong style={{ fontSize: 20 }}>{studyWord.translation_fr || '—'}</strong>
+                </motion.div>
+                {studyWord.translation_ar && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16, textAlign: 'right' }}
+                    dir="rtl"
+                  >
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>العربية</div>
+                    <strong style={{ fontSize: 19 }}>{studyWord.translation_ar}</strong>
+                  </motion.div>
+                )}
+                {studyWord.example_de && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.28 }}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16 }}
+                  >
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>Exemple</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ flex: 1 }}>„{studyWord.example_de}"</span>
+                      <button className="btn-icon" style={{ width: 30, height: 30 }} onClick={() => speak(studyWord.example_de)} title="Écouter l'exemple">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                      </button>
+                    </div>
+                    {studyWord.example_fr && <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>{studyWord.example_fr}</div>}
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </motion.section>
+      )}
 
       {filtered.length === 0 ? (
         <div className="empty">

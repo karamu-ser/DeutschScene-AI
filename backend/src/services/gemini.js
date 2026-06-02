@@ -13,11 +13,30 @@ const CONVERSATION_LEVEL_GUIDE = {
 };
 
 const LESSON_ANALYSIS_PROMPT = `
-Tu es un professeur d'allemand A1/A2 expert. Analyse ce document de cours et extrait TOUT le contenu.
+Tu es un professeur d'allemand expert pour tous les niveaux A1 à C2. Analyse COMPLÈTEMENT ce document de cours et extrait TOUT le contenu pédagogique.
 
-IMPORTANT : Tu DOIS remplir tous les champs. Ne laisse JAMAIS un tableau vide si le document contient du contenu correspondant.
-Le document peut être un PDF scanné composé d'images. Dans ce cas, lis le texte visible dans les images comme un OCR pédagogique.
-N'écris jamais "Le document est vide" si des mots, tableaux, exercices ou images de cours sont visibles.
+🔴 RÈGLE ABSOLUE : Tu DOIS remplir TOUS les champs avec TOUS les éléments du document.
+- Ne laisse JAMAIS un tableau vide [] si le document contient du contenu pour ce champ.
+- Si le document a des mots, TOUS les mots doivent être extraits.
+- Si le document a des tableaux de grammaire, TOUS les tableaux doivent être extraits.
+- Si le document a des exercices, TOUS les exercices doivent être extraits.
+
+MODE EXTRACTION MAXIMUM :
+1. Lis le document ENTIÈREMENT page par page, section par section
+2. Extrait CHAQUE mot allemand visible + article, pluriel, traductions complètes (FR et AR), exemples
+3. Extrait CHAQUE règle grammaticale + tous les tableaux de conjugaison/déclinaison complets
+4. Extrait CHAQUE dialogue, conversation ou exemple de discussion
+5. Extrait CHAQUE expression, salutation, phrase utile
+6. Extrait CHAQUE exercice avec TOUTES les questions et réponses
+7. Si le document contient des images/tableaux, transforme-les en JSON structuré
+8. Si une section a peu de détails, ajoute-la quand même : ne supprime rien
+
+OBJECTIF MINIMUM :
+- Pour un PDF normal : minimum 30+ mots, 3-5 règles, 2+ dialogues/expressions, tous les exercices
+- Si le document contient plus de contenu → le JSON doit contenir plus de contenu
+
+Garde le niveau réel du document : A1, A2, B1, B2, C1 ou C2.
+N'invente rien, mais extrais TOUT ce qui est visible.
 
 Retourne UNIQUEMENT ce JSON (sans backticks, sans markdown, sans commentaires) :
 
@@ -102,6 +121,8 @@ RÈGLES STRICTES :
 5. exercises : si le document contient des exercices, extrais les questions et réponses
 6. Pour les verbes : inclus la conjugaison complète dans grammar.table
 7. Ne mets JAMAIS [] si le document contient du contenu pour ce champ
+8. Si tu hésites entre ignorer un élément et l'inclure, inclus-le.
+9. Ne retourne pas une leçon pauvre pour un document riche.
 `;
 
 const PRONUNCIATION_PROMPT = `
@@ -716,6 +737,61 @@ ${JSON.stringify(lessonContent).slice(0, 45000)}
   }
 }
 
+async function matchLessonToExisting(analyzedLesson, existingLessons) {
+  if (!existingLessons || existingLessons.length === 0) {
+    return { should_merge: false, existing_lesson_id: null, confidence: 0, reason: 'No existing lessons' };
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+  const model = getModel(apiKey);
+
+  const prompt = `Tu es un assistant de gestion de leçons d'allemand. Analyse si le PDF importé appartient à une leçon existante.
+
+PDF ANALYSÉ :
+- Titre: ${analyzedLesson.lesson?.title}
+- Niveau: ${analyzedLesson.lesson?.level}
+- Topic: ${analyzedLesson.lesson?.topic}
+- Unit: ${analyzedLesson.lesson?.unit}
+- Mots: ${(analyzedLesson.vocabulary || []).length}
+- Règles grammaire: ${(analyzedLesson.grammar || []).length}
+- Dialogues: ${(analyzedLesson.dialogues || []).length}
+
+LEÇONS EXISTANTES :
+${existingLessons.map((l, i) => `${i}. ID=${l.id}: "${l.title}" | Niveau=${l.level} | Topic=${l.topic} | Unit=${l.unit}`).join('\n')}
+
+DÉCISION À PRENDRE :
+1. Le PDF est-il une CONTINUATION ou EXTENSION d'une leçon existante? (même sujet, même niveau, contenu complémentaire)
+2. Ou est-ce une NOUVELLE leçon indépendante?
+
+Retourne UNIQUEMENT ce JSON :
+{
+  "should_merge": true/false,
+  "existing_lesson_id": null ou le ID de la leçon existante,
+  "confidence": 0-100 (% de certitude),
+  "reason": "explication courte"
+}
+
+Critères de fusion :
+- Même niveau (A1, A2, etc.) ou niveau compatible
+- Même topic ou sujet connexe
+- Le nouveau PDF apporte du contenu complémentaire (plus de vocabulaire, plus d'exercices, etc.)
+
+🔴 NE FUSIONNE PAS si :
+- Les sujets sont très différents
+- Les niveaux ne correspondent pas (A1 vs B2)
+- Le PDF introduit des concepts totalement nouveaux`;
+
+  const result = await generateContent(model, prompt);
+  const clean = cleanJSON(result.response.text());
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('Match parse error:', clean.substring(0, 300));
+    return { should_merge: false, existing_lesson_id: null, confidence: 0, reason: 'Error parsing AI response' };
+  }
+}
+
 module.exports = {
   analyzeLessonFile,
   analyzeLessonText,
@@ -727,5 +803,6 @@ module.exports = {
   generateDialogueFilmScene,
   generateConversationReply,
   generateAiLehrerReply,
-  generateStoryFromLesson
+  generateStoryFromLesson,
+  matchLessonToExisting
 };
