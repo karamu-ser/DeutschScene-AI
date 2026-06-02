@@ -842,37 +842,50 @@ router.post('/', upload.single('file'), async (req, res) => {
     const fileBuffer = fs.readFileSync(filePath);
     let lesson;
 
+    console.log(`📥 Upload started: ${req.file.originalname} (${mimetype})`);
+
     if (mimetype === 'application/pdf') {
       // 🔧 PRIORITÉ: Analyse directe du PDF par Gemini (plus complète qu'extraction texte)
       // Gemini a meilleur OCR et comprend mieux la structure PDF
+      console.log('📄 Analyzing PDF directly with Gemini...');
       lesson = await analyzeLessonFile(fileBuffer, mimetype);
+      console.log(`✅ Gemini analysis complete: "${lesson.lesson?.title}" | Words: ${(lesson.vocabulary || []).length} | Grammar: ${(lesson.grammar || []).length}`);
       
       // Si le résultat semble incomplet, essayer l'extraction texte comme fallback
       if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
+        console.log('⚠️ Gemini result looks incomplete, trying text extraction fallback...');
         try {
           const pdfParse = require('pdf-parse');
           const data = await pdfParse(fileBuffer);
           const extractedText = String(data.text || '').trim();
+          console.log(`📝 Text extracted: ${extractedText.length} chars`);
           if (extractedText.length >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)) {
             const textLesson = await analyzeLessonText(extractedText);
+            console.log(`✅ Text analysis complete: Words: ${(textLesson.vocabulary || []).length} | Grammar: ${(textLesson.grammar || []).length}`);
             // Compare and use the lesson with more content
             const origCount = lessonContentCount(lesson);
             const textCount = lessonContentCount(textLesson);
+            console.log(`📊 Content count: Gemini=${origCount} vs Text=${textCount}`);
             if (textCount > origCount) {
               lesson = textLesson;
+              console.log('✅ Using text analysis (more content)');
             }
           }
-        } catch {
+        } catch (e) {
+          console.error('❌ Text extraction failed:', e.message);
           // Keep the PDF analysis result
         }
       }
     } else {
+      console.log('🖼️ Analyzing image/document with Gemini...');
       lesson = await analyzeLessonFile(fileBuffer, mimetype);
+      console.log(`✅ Analysis complete: "${lesson.lesson?.title}"`);
     }
 
     fs.unlinkSync(filePath);
 
     if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
+      console.error('❌ Upload rejected: lesson is empty');
       return res.status(422).json({
         error: 'Le PDF semble vide ou ne contient pas d\'informations pédagogiques. Réessaie avec un PDF contenant du texte allemand.'
       });
@@ -1035,6 +1048,13 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     invalidateSummaryCache();
     dedupeLessonContent(lessonId, req.userId);
+
+    // Verify lesson was saved
+    const verifyLesson = query('SELECT id, title FROM lessons WHERE id = ? AND user_id = ?', [lessonId, req.userId]);
+    const verifyWords = query('SELECT COUNT(*) as count FROM words WHERE lesson_id = ?', [lessonId]);
+    console.log(`✅ UPLOAD COMPLETE:`);
+    console.log(`   Lesson: ${verifyLesson.length > 0 ? 'SAVED ✅' : 'NOT FOUND ❌'}`);
+    console.log(`   Words: ${verifyWords[0]?.count || 0} saved`);
 
     res.json({
       success:    true,
