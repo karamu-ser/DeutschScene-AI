@@ -261,6 +261,10 @@ JWT_EXPIRY=7d
 
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_ANALYSIS_MAX_CHARS=60000
+
+UPLOAD_MAX_SIZE_MB=25
+PDF_TEXT_MIN_CHARS=200
 
 LOG_LEVEL=info
 
@@ -287,9 +291,11 @@ Frontend variables in `frontend/.env`:
 
 ```env
 VITE_API_URL=http://localhost:3001/api
+VITE_UPLOAD_TIMEOUT_MS=0
 ```
 
 For the Vercel demo mode, `VITE_API_URL` is optional because **Try Demo Without API Key** uses local mock learning data in the browser.
+`VITE_UPLOAD_TIMEOUT_MS=0` disables the frontend timeout for full lesson analysis.
 
 Security notes:
 
@@ -303,15 +309,17 @@ Security notes:
 ### Short Term
 
 - Keep the Vercel frontend demo available without login.
-- Add preview media for the main learning flows.
+- [Bug] Demo mode should never call backend.
+- [Docs] Add screenshots and demo GIF.
 - Expand test coverage for the core API routes.
 
 ### Learning Experience
 
-- Add Anki export for vocabulary and flashcards.
+- [Feature] Improve AI Lehrer practice flow.
+- [Feature] Add Anki export for vocabulary and flashcards.
 - Improve spaced repetition scheduling.
 - Add richer listening comprehension exercises.
-- Add PWA/offline learning support.
+- [Feature] Add PWA offline cache.
 
 ### Product
 

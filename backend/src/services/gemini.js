@@ -16,6 +16,8 @@ const LESSON_ANALYSIS_PROMPT = `
 Tu es un professeur d'allemand A1/A2 expert. Analyse ce document de cours et extrait TOUT le contenu.
 
 IMPORTANT : Tu DOIS remplir tous les champs. Ne laisse JAMAIS un tableau vide si le document contient du contenu correspondant.
+Le document peut être un PDF scanné composé d'images. Dans ce cas, lis le texte visible dans les images comme un OCR pédagogique.
+N'écris jamais "Le document est vide" si des mots, tableaux, exercices ou images de cours sont visibles.
 
 Retourne UNIQUEMENT ce JSON (sans backticks, sans markdown, sans commentaires) :
 
@@ -422,9 +424,11 @@ async function analyzeLessonText(text) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
   const model = getModel(apiKey);
+  const maxAnalysisChars = Number(process.env.GEMINI_ANALYSIS_MAX_CHARS || 60000);
+  const fullText = String(text || '').slice(0, maxAnalysisChars);
   const result = await generateContent(
     model,
-    LESSON_ANALYSIS_PROMPT + `\n\nVoici le contenu COMPLET du document à analyser :\n\n${text.substring(0, 12000)}`
+    LESSON_ANALYSIS_PROMPT + `\n\nVoici le contenu du document à analyser. Analyse tout ce contenu et retourne une leçon complète, sans te limiter aux premiers éléments :\n\n${fullText}`
   );
   const clean = cleanJSON(result.response.text());
   try {

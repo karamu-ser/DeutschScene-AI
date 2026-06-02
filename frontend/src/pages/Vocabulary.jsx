@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getWords, getTopics, deleteWord } from '../api/client';
 import { useSpeech } from '../hooks/useSpeech';
 import { Link } from 'react-router-dom';
+import { downloadVocabularyPdf } from '../utils/pdfExport';
 
 export default function Vocabulary() {
   const [words, setWords] = useState([]);
@@ -36,6 +37,10 @@ export default function Vocabulary() {
     setWords(w => w.filter(x => x.id !== id));
   };
 
+  const handleDownloadPdf = () => {
+    downloadVocabularyPdf(filtered, 'deutschscene-vocabulary.pdf');
+  };
+
   if (loading) return <div className="page"><div className="loading"><div className="spinner" /><span>Chargement...</span></div></div>;
 
   return (
@@ -62,6 +67,9 @@ export default function Vocabulary() {
             ✕ Réinitialiser
           </button>
         )}
+        <button className="btn btn-primary btn-sm" onClick={handleDownloadPdf} disabled={filtered.length === 0}>
+          Télécharger PDF
+        </button>
         <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 13, alignSelf: 'center' }}>
           {filtered.length} résultat{filtered.length !== 1 ? 's' : ''}
         </span>

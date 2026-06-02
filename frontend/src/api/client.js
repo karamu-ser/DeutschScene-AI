@@ -23,6 +23,8 @@ const api = axios.create({
   timeout: 180000,
 });
 
+const UPLOAD_TIMEOUT_MS = Number(import.meta.env.VITE_UPLOAD_TIMEOUT_MS || 0);
+
 export const uploadDocument = (formData, onProgress) => {
   if (isDemoMode()) {
     onProgress?.(100);
@@ -30,6 +32,7 @@ export const uploadDocument = (formData, onProgress) => {
   }
   return api.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT_MS,
     onUploadProgress: e => onProgress?.(Math.round((e.loaded * 100) / e.total))
   });
 };

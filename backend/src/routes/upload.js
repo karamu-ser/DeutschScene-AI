@@ -165,6 +165,26 @@ function lessonMergeIdentity(lesson) {
   return null;
 }
 
+function lessonHasContent(lesson) {
+  return Boolean(
+    (lesson?.vocabulary || []).length ||
+    (lesson?.grammar || []).length ||
+    (lesson?.dialogues || []).length ||
+    (lesson?.expressions || []).length ||
+    (lesson?.exercises || []).length
+  );
+}
+
+function isEmptyDocumentAnalysis(lesson) {
+  const title = normalizeText(lesson?.lesson?.title);
+  const topic = normalizeText(lesson?.lesson?.topic);
+  const emptyTitle = title.includes('document est vide') ||
+    title.includes('document vide') ||
+    title.includes('empty document');
+  const emptyTopic = topic === 'n a' || topic === 'na' || topic === 'none';
+  return emptyTitle || (!lessonHasContent(lesson) && emptyTopic);
+}
+
 function findMatchingLesson(userId, lessonMeta, analyzedLesson = null) {
   const lessons = query(
     'SELECT * FROM lessons WHERE user_id = ? ORDER BY created_at ASC, id ASC',
@@ -807,7 +827,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: Number(process.env.UPLOAD_MAX_SIZE_MB || 25) * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg','image/png','image/webp','application/pdf'];
     allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error('Type non supporté.'));
@@ -819,21 +839,36 @@ router.post('/', upload.single('file'), async (req, res) => {
 
   try {
     const { path: filePath, mimetype } = req.file;
+    const fileBuffer = fs.readFileSync(filePath);
     let lesson;
 
     if (mimetype === 'application/pdf') {
       try {
         const pdfParse = require('pdf-parse');
-        const data = await pdfParse(fs.readFileSync(filePath));
-        lesson = await analyzeLessonText(data.text);
+        const data = await pdfParse(fileBuffer);
+        const extractedText = String(data.text || '').trim();
+        if (extractedText.length >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)) {
+          lesson = await analyzeLessonText(extractedText);
+          if (isEmptyDocumentAnalysis(lesson)) {
+            lesson = await analyzeLessonFile(fileBuffer, mimetype);
+          }
+        } else {
+          lesson = await analyzeLessonFile(fileBuffer, mimetype);
+        }
       } catch {
-        lesson = await analyzeLessonFile(fs.readFileSync(filePath), mimetype);
+        lesson = await analyzeLessonFile(fileBuffer, mimetype);
       }
     } else {
-      lesson = await analyzeLessonFile(fs.readFileSync(filePath), mimetype);
+      lesson = await analyzeLessonFile(fileBuffer, mimetype);
     }
 
     fs.unlinkSync(filePath);
+
+    if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
+      return res.status(422).json({
+        error: 'Le PDF semble être un document image/scanné et aucune leçon exploitable n’a été extraite. Réessaie après OCR, ou utilise un modèle Gemini qui accepte bien les PDF/image.'
+      });
+    }
 
     // ── Save lesson metadata ──────────────────────────────────────────
     const lessonMeta = {

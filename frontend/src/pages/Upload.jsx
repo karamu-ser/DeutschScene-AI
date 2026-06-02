@@ -33,7 +33,7 @@ export default function Upload() {
       setActiveTab('vocabulary');
     } catch (err) {
       if (err.code === 'ECONNABORTED') {
-        setError("L'analyse prend trop de temps. Réessaie avec un fichier plus petit ou relance l'import.");
+        setError("L'analyse complète prend plus de temps que prévu. Relance l'import : le système garde une attente longue pour analyser toute la leçon.");
       } else if (!err.response) {
         setError("Impossible de contacter le backend. Vérifie que l'API tourne sur le port 3001.");
       } else {
@@ -75,7 +75,7 @@ export default function Upload() {
           <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </motion.svg>
         {uploading ? (
-          <><h3>Analyse en cours...</h3><p>Gemini analyse la structure pédagogique complète</p>
+          <><h3>Analyse complète en cours...</h3><p>Gemini extrait toute la leçon : vocabulaire, grammaire, dialogues et exercices. Les PDF longs peuvent prendre plusieurs minutes.</p>
           <div className="progress-bar" style={{width:'100%',maxWidth:300,margin:'16px auto 0'}}>
             <motion.div className="progress-bar-fill" initial={false} animate={{ width:`${progress||60}%` }} transition={{ duration: 0.35, ease: 'easeOut' }}/>
           </div>
@@ -93,7 +93,7 @@ export default function Upload() {
             ))}
           </div></>
         ) : (
-          <><h3>Glisse ton fichier ici</h3><p>PDF, JPG, PNG, WebP — max 10 MB</p></>
+          <><h3>Glisse ton fichier ici</h3><p>PDF, JPG, PNG, WebP — max 25 MB</p></>
         )}
         <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
           style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
