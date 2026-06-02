@@ -175,6 +175,281 @@ function lessonHasContent(lesson) {
   );
 }
 
+function lessonContentCount(lesson) {
+  return (lesson?.vocabulary || []).length +
+    (lesson?.grammar || []).length +
+    (lesson?.dialogues || []).length +
+    (lesson?.expressions || []).length +
+    (lesson?.exercises || []).length;
+}
+
+function lessonLooksTooThinForSource(lesson, { textLength = 0, fileSize = 0 } = {}) {
+  const baseCount = lessonContentCount(lesson);
+  const wordCount = (lesson?.vocabulary || []).length;
+  const grammarTables = (lesson?.grammar || []).reduce((total, rule) => total + (rule.table || []).length, 0);
+  const exerciseQuestions = (lesson?.exercises || []).reduce((total, exercise) => total + (exercise.questions || []).length, 0);
+  const richContentCount = baseCount + grammarTables + exerciseQuestions;
+
+  if (textLength >= 3000 && wordCount < 25) return true;
+  if (textLength >= 1200 && richContentCount < 8) return true;
+  if (textLength >= 4000 && richContentCount < 14) return true;
+  if (fileSize >= 1024 * 1024 && richContentCount < 10) return true;
+  return false;
+}
+
+const TEXT_FALLBACK_STOP_WORDS = new Set([
+  'smartdeutsch', 'center', 'sprachschule', 'lehr', 'lernmaterialien', 'lehrmaterial',
+  'niveau', 'anfanger', 'inhalt', 'dieser', 'lektion', 'teil', 'seite', 'beispiele',
+  'bsp', 'regel', 'regeln', 'merkhilfe', 'hinweis', 'zusammenfassung', 'deutsche',
+  'deutschen', 'alphabet', 'buchstaben', 'aussprache', 'wird', 'werden', 'wenn',
+  'nach', 'vor', 'bei', 'und', 'oder', 'mit', 'wie', 'ist', 'das', 'der', 'die',
+  'ein', 'eine', 'einen', 'im', 'am', 'auf', 'aus', 'man', 'nicht', 'immer',
+  'meistens', 'langes', 'kurzem', 'vokal', 'vokale', 'wort', 'wortende'
+]);
+
+const TEXT_FALLBACK_TRANSLATIONS = {
+  'die Straße': ['la rue', 'الشارع'],
+  'der Spaß': ["l'amusement / le plaisir", 'المتعة'],
+  'das Wasser': ["l'eau", 'الماء'],
+  'der Lehrer': ['le professeur', 'الأستاذ'],
+  'der Bruder': ['le frère', 'الأخ'],
+  'die Station': ['la station', 'المحطة'],
+  'die Zeitung': ['le journal', 'الجريدة'],
+  'die Versicherung': ["l'assurance", 'التأمين'],
+  'die Schule': ["l'école", 'المدرسة'],
+  'der Tisch': ['la table', 'الطاولة'],
+  'das Haus': ['la maison', 'المنزل'],
+  'der Baum': ["l'arbre", 'الشجرة'],
+  'die Familie': ['la famille', 'العائلة'],
+  'der Sport': ['le sport', 'الرياضة'],
+  'sehen': ['voir', 'يرى'],
+  'gehen': ['aller', 'يذهب'],
+  'verstehen': ['comprendre', 'يفهم'],
+  'schreiben': ['écrire', 'يكتب'],
+  'spielen': ['jouer', 'يلعب']
+};
+
+function stripPdfNoise(text) {
+  return String(text || '')
+    .replace(/\b\d+\s*\/\s*\d+\b/g, ' ')
+    .replace(/\b[A-Z]{2,}\b/g, match => match.length <= 3 ? match : ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findExampleForTerm(text, term) {
+  const escaped = String(term || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sentence = String(text || '')
+    .split(/[\n.!?]+/)
+    .map(item => item.trim())
+    .find(item => new RegExp(`\\b${escaped}\\b`, 'i').test(item) && item.length <= 120);
+  return sentence || `${term} ist ein wichtiges Wort aus der Lektion.`;
+}
+
+function splitObviousArticleSuffix(value) {
+  const raw = String(value || '').trim();
+  if (/\s/.test(raw)) return raw;
+  const match = raw.match(/^(.{4,})(der|die|das)$/i);
+  if (!match) return raw;
+
+  const base = match[1];
+  const article = match[2].toLowerCase();
+  if (!/^[A-ZÄÖÜ]/.test(base)) return raw;
+  return `${article} ${base}`;
+}
+
+function looksLikeGluedOcrToken(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return true;
+  if (/\s/.test(raw)) return false;
+  if (raw.length > 28) return true;
+  if (/^.{4,}(der|die|das)$/i.test(raw)) return true;
+  if (/[a-zäöüß][A-ZÄÖÜ]/.test(raw)) return true;
+  if (/(der|die|das)[A-ZÄÖÜ]/.test(raw.slice(4))) return true;
+  return false;
+}
+
+function cleanVocabularyWord(value) {
+  const obvious = splitObviousArticleSuffix(value);
+  return looksLikeGluedOcrToken(obvious) ? null : obvious;
+}
+
+function createFallbackWord(word, text, level, topic, type = 'other') {
+  const safeWord = cleanVocabularyWord(word);
+  if (!safeWord) return null;
+  const parts = safeWord.split(/\s+/);
+  const article = ['der', 'die', 'das'].includes(parts[0]?.toLowerCase()) ? parts[0].toLowerCase() : null;
+  const normalizedWord = article ? `${article} ${parts.slice(1).join(' ')}` : safeWord;
+  const [translationFr, translationAr] = TEXT_FALLBACK_TRANSLATIONS[normalizedWord] || ['élément extrait du PDF', 'عنصر مستخرج من الملف'];
+  return {
+    word: normalizedWord,
+    article,
+    plural: null,
+    type,
+    translation_fr: translationFr,
+    translation_ar: translationAr,
+    example_de: findExampleForTerm(text, parts[parts.length - 1] || normalizedWord),
+    example_fr: 'Exemple extrait ou reconstruit depuis le document.',
+    level,
+    topic
+  };
+}
+
+function buildVocabularyFromText(text, level, topic) {
+  const cleanText = stripPdfNoise(text);
+  const items = [];
+  const add = (word, type = 'other') => {
+    const safeWord = cleanVocabularyWord(word);
+    if (!safeWord) return;
+    const key = normalizeText(safeWord);
+    if (!key || items.some(item => normalizeText(item.word) === key)) return;
+    const item = createFallbackWord(safeWord, cleanText, level, topic, type);
+    if (item) items.push(item);
+  };
+
+  for (const match of cleanText.matchAll(/\b(der|die|das)\s+[A-ZÄÖÜ][\p{L}ÄÖÜäöüß-]+/gu)) {
+    add(match[0], 'noun');
+  }
+
+  for (const match of cleanText.matchAll(/[„"]([^„”"]{4,120})[”"]/g)) {
+    const phrase = match[1].trim();
+    if (/[a-zäöüß]/i.test(phrase)) add(phrase, 'phrase');
+  }
+
+  for (const term of ['Ä', 'Ö', 'Ü', 'ß', 'au', 'ei', 'eu', 'äu', 'ie', 'sch', 'ch', 'chs', 'qu', 'st', 'sp', '-er', '-tion', '-ung']) {
+    if (cleanText.includes(term.replace('-', '')) || cleanText.includes(term)) add(term, 'other');
+  }
+
+  for (const match of cleanText.matchAll(/\b[\p{L}ÄÖÜäöüß]{4,}\b/gu)) {
+    const word = match[0];
+    const key = normalizeText(word);
+    if (TEXT_FALLBACK_STOP_WORDS.has(key) || /^\d+$/.test(key)) continue;
+    if (/^[A-ZÄÖÜ]/.test(word) || /[äöüß]/.test(word)) {
+      add(word, /^[A-ZÄÖÜ]/.test(word) ? 'noun' : 'other');
+    }
+    if (items.length >= 200) break;
+  }
+
+  return items.slice(0, 200);
+}
+
+function buildGrammarFromText(text) {
+  const cleanText = stripPdfNoise(text);
+  const rules = [];
+  const addRule = (rule_title, explanation_fr, examples = [], table = []) => {
+    if (rules.some(rule => normalizeText(rule.rule_title) === normalizeText(rule_title))) return;
+    rules.push({
+      rule_title,
+      explanation_fr,
+      explanation_ar: 'شرح مبسط مستخرج من محتوى الملف.',
+      examples,
+      table
+    });
+  };
+
+  if (/Umlaute|Ä|Ö|Ü|ß/.test(cleanText)) {
+    addRule('Umlaute et scharfes S',
+      'Les Umlaute Ä, Ö, Ü changent le son de la voyelle. Le ß apparaît après une voyelle longue ou une diphtongue.',
+      [{ de: 'die Straße', fr: 'la rue' }, { de: 'der Spaß', fr: 'le plaisir' }, { de: 'das Wasser', fr: "l'eau" }],
+      [{ header: ['Signe', 'Règle', 'Exemples'], rows: [['Ä/ä', 'son entre a et e', 'spät, Männer'], ['Ö/ö', 'o plus fermé', 'Öl, Größe'], ['Ü/ü', 'u avec la langue vers l avant', 'grün, Gemüse'], ['ß', 'après voyelle longue', 'Straße, Spaß']] }]
+    );
+  }
+  if (/Vokalverbindungen|au|ei|eu|ie/.test(cleanText)) {
+    addRule('Vokalverbindungen',
+      'Les combinaisons au, ei, eu/äu et ie ont une prononciation stable en allemand.',
+      [{ de: 'Paul kauft einen Baum.', fr: 'Paul achète un arbre.' }, { de: 'Die Familie kommt aus Italien.', fr: "La famille vient d'Italie." }],
+      [{ header: ['Combinaison', 'Son', 'Exemples'], rows: [['au', 'ow', 'Haus, Baum'], ['ei', 'eye', 'kein, Schwein'], ['eu/äu', 'oy', 'Deutsch, Häuser'], ['ie', 'i long', 'sieben, fliegen']] }]
+    );
+  }
+  if (/Konsonantenkombinationen|sch|chs|qu/.test(cleanText)) {
+    addRule('Konsonantenkombinationen',
+      'Les groupes sch, ch, chs et qu ont des sons spécifiques. ch change selon la voyelle précédente.',
+      [{ de: 'Ich schreibe in der Schule.', fr: "J'écris à l'école." }, { de: 'Der Kuchen ist hoch.', fr: 'Le gâteau est haut.' }],
+      [{ header: ['Groupe', 'Prononciation', 'Exemples'], rows: [['sch', 'sh', 'Schule, Tisch'], ['ch', 'avant ou arrière', 'ich, Bach'], ['chs', 'ks', 'sechs'], ['qu', 'kv', 'Quark']] }]
+    );
+  }
+  if (/\bst\b|\bsp\b/.test(cleanText)) {
+    addRule('st et sp au début du mot',
+      'Au début du mot, st se prononce scht et sp se prononce schp.',
+      [{ de: 'Ich spiele Sport.', fr: 'Je fais du sport.' }, { de: 'Ich verstehe die Stimme.', fr: 'Je comprends la voix.' }]
+    );
+  }
+  if (/-er|Dehnungs-h|HIAT-H|Das R/.test(cleanText)) {
+    addRule('-er, h muet et R allemand',
+      'En fin de mot, -er devient très faible. Le h peut allonger une voyelle sans être prononcé. Le R allemand peut être produit dans la gorge.',
+      [{ de: 'Der Lehrer ist mein Bruder.', fr: 'Le professeur est mon frère.' }, { de: 'Ich gehe und sehe.', fr: 'Je vais et je vois.' }]
+    );
+  }
+  if (/Das S|weiches S|hartes S/.test(cleanText)) {
+    addRule('Das S',
+      'Le S est doux devant une voyelle et dur à la fin du mot ou devant une consonne.',
+      [{ de: 'Sie sehen sieben Sommer-Reisen.', fr: "Ils voient sept voyages d'été." }, { de: 'Der Preis ist aus.', fr: 'Le prix est fini.' }]
+    );
+  }
+  if (/-tion|-ung/.test(cleanText)) {
+    addRule('Endungen -tion und -ung',
+      '-tion se prononce tzion. Dans -ung, le g final est très faible et forme un son nasal.',
+      [{ de: 'die Station', fr: 'la station' }, { de: 'die Zeitung', fr: 'le journal' }, { de: 'die Versicherung', fr: "l'assurance" }]
+    );
+  }
+
+  return rules;
+}
+
+function enrichLessonFromExtractedText(lesson, extractedText) {
+  if (!extractedText || extractedText.length < Number(process.env.PDF_TEXT_MIN_CHARS || 200)) return lesson;
+  const level = lesson?.lesson?.level || 'A1';
+  const topic = lesson?.lesson?.topic || 'Contenu extrait du PDF';
+  const fallbackVocabulary = buildVocabularyFromText(extractedText, level, topic);
+  const fallbackGrammar = buildGrammarFromText(extractedText);
+
+  return {
+    ...lesson,
+    lesson: {
+      title: lesson?.lesson?.title || 'Leçon extraite du PDF',
+      level,
+      unit: lesson?.lesson?.unit || null,
+      topic,
+      objectives: uniqueNormalizedValues([
+        ...(lesson?.lesson?.objectives || []),
+        'Extraire les mots importants du PDF',
+        'Comprendre les règles principales de la leçon',
+        'Pratiquer avec des exemples du document'
+      ])
+    },
+    vocabulary: uniqueBy([...(lesson?.vocabulary || []), ...fallbackVocabulary], item => normalizeText(item.word)),
+    grammar: uniqueBy([...(lesson?.grammar || []), ...fallbackGrammar], item => normalizeText(item.rule_title)),
+    dialogues: lesson?.dialogues || [],
+    expressions: lesson?.expressions || [],
+    exercises: lesson?.exercises || []
+  };
+}
+
+function cleanLessonVocabulary(lesson) {
+  const vocabulary = [];
+  const seen = new Set();
+  for (const item of (lesson?.vocabulary || [])) {
+    const safeWord = cleanVocabularyWord(item.word);
+    if (!safeWord) continue;
+    const key = normalizeText(safeWord);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    const parts = safeWord.split(/\s+/);
+    const article = ['der', 'die', 'das'].includes(parts[0]?.toLowerCase()) ? parts[0].toLowerCase() : item.article || null;
+    vocabulary.push({
+      ...item,
+      word: safeWord,
+      article
+    });
+  }
+
+  return {
+    ...lesson,
+    vocabulary
+  };
+}
+
 function isEmptyDocumentAnalysis(lesson) {
   const title = normalizeText(lesson?.lesson?.title);
   const topic = normalizeText(lesson?.lesson?.topic);
@@ -203,9 +478,7 @@ function findMatchingLesson(userId, lessonMeta, analyzedLesson = null) {
       && normalizeText(existing.unit) === incomingUnit
       && normalizeText(existing.topic) === incomingTopic
       && normalizeText(existing.level) === incomingLevel;
-    const relatedMetadata = lessonMetadataLooksRelated(existing, lessonMeta);
-    const relatedContent = analyzedLesson ? lessonContentLooksRelated(existing, analyzedLesson) : false;
-    return sameTitle || sameUnitTopic || relatedMetadata || relatedContent;
+    return sameTitle || sameUnitTopic;
   }) || null;
 }
 
@@ -252,6 +525,34 @@ function getOrCreateLesson(userId, lessonMeta, analyzedLesson) {
     const dbRes = query('SELECT last_insert_rowid() as id');
     lessonId = Number(dbRes[0].id);
   }
+  if (!Number.isInteger(lessonId) || lessonId <= 0) {
+    throw new Error("Impossible de récupérer l'ID de la leçon créée.");
+  }
+  return { lessonId, merged: false };
+}
+
+function createLesson(userId, lessonMeta) {
+  run(
+    `INSERT INTO lessons (user_id, title, level, unit, topic, objectives_json)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      userId,
+      lessonMeta.title || 'Leçon sans titre',
+      lessonMeta.level || 'A1',
+      lessonMeta.unit || null,
+      lessonMeta.topic || null,
+      JSON.stringify(lessonMeta.objectives || [])
+    ]
+  );
+
+  const [created] = query(
+    `SELECT id FROM lessons
+     WHERE user_id = ?
+     ORDER BY id DESC
+     LIMIT 1`,
+    [userId]
+  );
+  const lessonId = Number(created?.id);
   if (!Number.isInteger(lessonId) || lessonId <= 0) {
     throw new Error("Impossible de récupérer l'ID de la leçon créée.");
   }
@@ -330,17 +631,6 @@ function mergeDuplicateLessonsForUser(userId) {
 
   for (const lesson of lessons) {
     const identity = lessonMergeIdentity(lesson);
-    const relatedEntry = Array.from(lessonByIdentity.entries()).find(([, existingId]) => {
-      const [existing] = query('SELECT * FROM lessons WHERE id = ? AND user_id = ?', [existingId, userId]);
-      return existing && lessonMetadataLooksRelated(existing, {
-        ...lesson,
-        objectives: parseJSON(lesson.objectives_json, [])
-      });
-    });
-    if (relatedEntry) {
-      mergeLessonContent(relatedEntry[1], Number(lesson.id), userId);
-      continue;
-    }
     if (!identity) continue;
     if (!lessonByIdentity.has(identity)) {
       lessonByIdentity.set(identity, Number(lesson.id));
@@ -841,10 +1131,22 @@ router.post('/', upload.single('file'), async (req, res) => {
     const { path: filePath, mimetype } = req.file;
     const fileBuffer = fs.readFileSync(filePath);
     let lesson;
+    let extractedTextLength = 0;
+    let extractedText = '';
 
     console.log(`📥 Upload started: ${req.file.originalname} (${mimetype})`);
 
     if (mimetype === 'application/pdf') {
+      try {
+        const pdfParse = require('pdf-parse');
+        const data = await pdfParse(fileBuffer);
+        extractedText = String(data.text || '').trim();
+        extractedTextLength = extractedText.length;
+        console.log(`📝 Text extracted: ${extractedTextLength} chars`);
+      } catch (e) {
+        console.error('❌ Text extraction failed:', e.message);
+      }
+
       // 🔧 PRIORITÉ: Analyse directe du PDF par Gemini (plus complète qu'extraction texte)
       // Gemini a meilleur OCR et comprend mieux la structure PDF
       console.log('📄 Analyzing PDF directly with Gemini...');
@@ -852,13 +1154,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       console.log(`✅ Gemini analysis complete: "${lesson.lesson?.title}" | Words: ${(lesson.vocabulary || []).length} | Grammar: ${(lesson.grammar || []).length}`);
       
       // Si le résultat semble incomplet, essayer l'extraction texte comme fallback
-      if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
+      if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson) || lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })) {
         console.log('⚠️ Gemini result looks incomplete, trying text extraction fallback...');
         try {
-          const pdfParse = require('pdf-parse');
-          const data = await pdfParse(fileBuffer);
-          const extractedText = String(data.text || '').trim();
-          console.log(`📝 Text extracted: ${extractedText.length} chars`);
           if (extractedText.length >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)) {
             const textLesson = await analyzeLessonText(extractedText);
             console.log(`✅ Text analysis complete: Words: ${(textLesson.vocabulary || []).length} | Grammar: ${(textLesson.grammar || []).length}`);
@@ -882,12 +1180,23 @@ router.post('/', upload.single('file'), async (req, res) => {
       console.log(`✅ Analysis complete: "${lesson.lesson?.title}"`);
     }
 
+    if (lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })) {
+      console.log('🧩 Enriching incomplete Gemini lesson from extracted PDF text...');
+      lesson = enrichLessonFromExtractedText(lesson, extractedText);
+      console.log(`✅ Enriched lesson: Words=${(lesson.vocabulary || []).length} | Grammar=${(lesson.grammar || []).length}`);
+    }
+    lesson = cleanLessonVocabulary(lesson);
+
     fs.unlinkSync(filePath);
 
-    if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
-      console.error('❌ Upload rejected: lesson is empty');
+    if (
+      isEmptyDocumentAnalysis(lesson) ||
+      !lessonHasContent(lesson) ||
+      lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })
+    ) {
+      console.error('❌ Upload rejected: lesson is empty or too incomplete');
       return res.status(422).json({
-        error: 'Le PDF semble vide ou ne contient pas d\'informations pédagogiques. Réessaie avec un PDF contenant du texte allemand.'
+        error: 'Le PDF contient plus d’informations que la leçon extraite. Relance l’import : le backend force maintenant une analyse complète. Si le problème continue, utilise un modèle Gemini plus fort pour PDF/image.'
       });
     }
 
@@ -916,7 +1225,7 @@ router.post('/', upload.single('file'), async (req, res) => {
           topic: lesson.lesson?.topic || null,
           objectives: lesson.lesson?.objectives || []
         };
-        const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
+        const result = createLesson(req.userId, lessonMeta);
         lessonId = result.lessonId;
         merged_with_existing_lesson = result.merged;
         console.log(`📌 CREATING NEW lesson ${lessonId}: ${match.reason}`);
@@ -930,7 +1239,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         topic: lesson.lesson?.topic || null,
         objectives: lesson.lesson?.objectives || []
       };
-      const result = getOrCreateLesson(req.userId, lessonMeta, lesson);
+      const result = createLesson(req.userId, lessonMeta);
       lessonId = result.lessonId;
       merged_with_existing_lesson = result.merged;
       console.log(`📌 FIRST lesson created ${lessonId}`);
@@ -939,9 +1248,8 @@ router.post('/', upload.single('file'), async (req, res) => {
     // ── Save vocabulary ───────────────────────────────────────────────
     const savedWords = [];
     for (const w of (lesson.vocabulary || [])) {
-      const exists = query('SELECT id FROM words WHERE user_id = ? AND word = ?', [req.userId, w.word]);
+      const exists = query('SELECT id FROM words WHERE user_id = ? AND lesson_id = ? AND word = ?', [req.userId, lessonId, w.word]);
       if (exists.length > 0) {
-        run('UPDATE words SET lesson_id = ? WHERE id = ?', [lessonId, exists[0].id]);
         ensureReviewSchedule(exists[0].id);
         savedWords.push({ ...w, id: exists[0].id, duplicate: true });
         continue;

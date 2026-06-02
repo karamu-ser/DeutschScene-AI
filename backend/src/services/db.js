@@ -238,10 +238,14 @@ function migrateSchema() {
   ensureColumn('generated_content', 'updated_at', "TEXT DEFAULT (datetime('now'))");
 }
 
+function normalizeParams(params = []) {
+  return params.map(value => value === undefined ? null : value);
+}
+
 function query(sql, params = []) {
   if (!db) throw new Error('Database is not initialized. Call getDb() before query().');
   const stmt = db.prepare(sql);
-  stmt.bind(params);
+  stmt.bind(normalizeParams(params));
   const rows = [];
   while (stmt.step()) rows.push(stmt.getAsObject());
   stmt.free();
@@ -255,7 +259,7 @@ function getInsertedTable(sql) {
 
 function run(sql, params = []) {
   const insertedTable = getInsertedTable(sql);
-  db.run(sql, params);
+  db.run(sql, normalizeParams(params));
   const lastInsertRowid = insertedTable
     ? query('SELECT last_insert_rowid() as id')[0]?.id
     : undefined;
