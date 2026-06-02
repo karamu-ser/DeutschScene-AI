@@ -26,6 +26,22 @@ Tu es un professeur d'allemand expert pour tous les niveaux A1 à C2. Analyse CO
 - N'extrais pas les chaînes qui semblent être des mots collés par erreur OCR/PDF.
 - Exemples à rejeter : Straßedie, Sportder, Stationdie, Versicherungdie, heißtkeinbeiSchwein, neuheuteFeuerzeugVerkäuferDeutschHäuser, ichmanchmalMilchlächerlichBücherKircheeuchfeuchtechtGesprächmöchteKüche.
 - Si une chaîne contient plusieurs mots collés, sépare-la seulement si c'est évident. Sinon, ignore-la.
+- N'utilise jamais des traductions génériques ou placeholders comme "élément extrait du PDF", "عنصر مستخرج من الملف", "mot important de la leçon" ou "important word from the lesson".
+- Si tu ne connais pas la traduction exacte, mets null.
+- Si un élément extrait n'a pas de sens lexical ou pédagogique clair, supprime-le de vocabulary.
+- Ne mets pas dans vocabulary des fragments PDF/OCR, bouts de titres, mots collés, numéros, en-têtes, pieds de page ou textes de navigation.
+- Si l'élément est une lettre, un son, une terminaison ou une règle de prononciation, ne le mets jamais dans vocabulary.
+- Les éléments comme Ä, Ö, Ü, ß, au, ei, eu, ie, sch, ch, st, sp, -er, -tion, -ung doivent aller dans grammar/examples, jamais dans vocabulary.
+- N'ajoute pas chaque token extrait dans vocabulary. Classe mentalement les éléments ainsi :
+  vocabulary = mots allemands utiles pour l'apprenant, avec article si nom ;
+  expressions = salutations et phrases utiles comme Hallo, Guten Morgen ;
+  verbs = verbes infinitifs utiles, type "verb" dans vocabulary seulement si forme infinitive ;
+  grammar_terms = mots techniques de cours comme Verb, Endung, Subjekt, Präsens, jamais dans vocabulary ;
+  proper_nouns = noms, villes, pays, personnes comme Berlin, Müller, Türkei, jamais dans vocabulary ;
+  rejected_items = OCR cassé ou fragments inutiles, jamais dans le JSON.
+- Les éléments vocabulary doivent avoir un article correct si ce sont des noms, translation_fr, translation_ar, et example_de si disponible.
+- Si translation_fr ou translation_ar est inconnue, mets null. Ne mets jamais de placeholder.
+- Ne classe jamais comme noun : W-Fragen comme Wann, Wo, Warum ; salutations comme Hallo, Guten Morgen ; verbes conjugués comme heißt, heiße, grüße, hängt ; chaînes OCR cassées comme Wowohnstdu.
 - Si le document a des tableaux de grammaire, TOUS les tableaux doivent être extraits.
 - Si le document a des exercices, TOUS les exercices doivent être extraits.
 

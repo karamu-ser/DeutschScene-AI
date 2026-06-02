@@ -229,6 +229,46 @@ const TEXT_FALLBACK_TRANSLATIONS = {
   'spielen': ['jouer', 'يلعب']
 };
 
+const PEDAGOGICAL_SOUND_ITEMS = new Set([
+  'ä', 'ö', 'ü', 'ß', 'au', 'ei', 'eu', 'äu', 'ie', 'sch', 'ch', 'chs', 'qu', 'st', 'sp', '-er', '-tion', '-ung'
+]);
+
+const GRAMMAR_TECHNICAL_TERMS = new Set([
+  'verb', 'verben', 'endung', 'endungen', 'subjekt', 'prädikat', 'pradikat', 'objekt',
+  'präsens', 'prasens', 'infinitiv', 'konjugation', 'nominativ', 'akkusativ', 'dativ',
+  'genitiv', 'artikel', 'frage', 'fragen', 'w fragen', 'ja nein fragen', 'vokal',
+  'vokale', 'konsonant', 'konsonanten', 'diphthong', 'umlaut', 'umlaute'
+]);
+
+const W_QUESTION_WORDS = new Set(['wer', 'was', 'wann', 'wo', 'woher', 'wohin', 'wie', 'warum', 'wieso', 'weshalb']);
+const GREETING_EXPRESSIONS = new Set([
+  'hallo', 'guten morgen', 'guten tag', 'guten abend', 'gute nacht',
+  'auf wiedersehen', 'tschüss', 'tschuss', 'bis bald', 'bis später', 'bis spater'
+]);
+const CONJUGATED_VERB_FORMS = new Set([
+  'heißt', 'heisst', 'heiße', 'heisse', 'grüße', 'grusse', 'grüßt', 'grusst',
+  'hängt', 'hangt', 'kommst', 'komme', 'kommt', 'wohnst', 'wohne', 'wohnt',
+  'machst', 'mache', 'macht', 'arbeitest', 'arbeitet', 'lernst', 'lerne', 'lernt',
+  'bist', 'bin', 'ist', 'sind', 'seid', 'habe', 'hast', 'hat', 'haben', 'habt'
+]);
+const KNOWN_PROPER_NOUNS = new Set([
+  'berlin', 'müller', 'muller', 'türkei', 'turkei', 'deutschland', 'italien',
+  'spanien', 'brasilien', 'syrien', 'jordanien', 'paul', 'meier', 'meyer',
+  'maier', 'mayer'
+]);
+
+const EXPRESSION_TRANSLATIONS = {
+  'hallo': ['salut / bonjour', 'مرحبا'],
+  'guten morgen': ['bonjour le matin', 'صباح الخير'],
+  'guten tag': ['bonjour', 'نهارك سعيد'],
+  'guten abend': ['bonsoir', 'مساء الخير'],
+  'gute nacht': ['bonne nuit', 'تصبح على خير'],
+  'auf wiedersehen': ['au revoir', 'إلى اللقاء'],
+  'tschüss': ['salut / au revoir', 'مع السلامة'],
+  'tschuss': ['salut / au revoir', 'مع السلامة'],
+  'bis bald': ['à bientôt', 'إلى اللقاء قريبا']
+};
+
 function stripPdfNoise(text) {
   return String(text || '')
     .replace(/\b\d+\s*\/\s*\d+\b/g, ' ')
@@ -243,7 +283,7 @@ function findExampleForTerm(text, term) {
     .split(/[\n.!?]+/)
     .map(item => item.trim())
     .find(item => new RegExp(`\\b${escaped}\\b`, 'i').test(item) && item.length <= 120);
-  return sentence || `${term} ist ein wichtiges Wort aus der Lektion.`;
+  return sentence || null;
 }
 
 function splitObviousArticleSuffix(value) {
@@ -274,13 +314,63 @@ function cleanVocabularyWord(value) {
   return looksLikeGluedOcrToken(obvious) ? null : obvious;
 }
 
+function isGrammarTechnicalTerm(word) {
+  return GRAMMAR_TECHNICAL_TERMS.has(normalizeText(word));
+}
+
+function isWQuestionWord(word) {
+  return W_QUESTION_WORDS.has(normalizeText(word));
+}
+
+function isGreetingExpression(word) {
+  return GREETING_EXPRESSIONS.has(normalizeText(word));
+}
+
+function isConjugatedVerbForm(word) {
+  return CONJUGATED_VERB_FORMS.has(normalizeText(word));
+}
+
+function isKnownProperNoun(word) {
+  const normalized = normalizeText(word);
+  return KNOWN_PROPER_NOUNS.has(normalized) || /^[A-ZÄÖÜ][a-zäöüß]+$/.test(String(word || '').trim()) && !hasArticlePrefix(word);
+}
+
+function hasArticlePrefix(word) {
+  const first = String(word || '').trim().split(/\s+/)[0]?.toLowerCase();
+  return ['der', 'die', 'das'].includes(first);
+}
+
+function hasUsefulTranslation(item) {
+  return Boolean(String(item?.translation_fr || '').trim() || String(item?.translation_ar || '').trim());
+}
+
+function hasUsefulExample(item) {
+  const example = String(item?.example_de || '').trim();
+  return example && example !== item.word && example.length <= 160;
+}
+
+function isMeaningfulVocabularyItem(item) {
+  const word = String(item?.word || '').trim();
+  if (!word) return false;
+  const key = normalizeText(word);
+  if (!key || TEXT_FALLBACK_STOP_WORDS.has(key)) return false;
+  if (PEDAGOGICAL_SOUND_ITEMS.has(word.toLowerCase())) return false;
+  if (isGrammarTechnicalTerm(word) || isWQuestionWord(word) || isGreetingExpression(word)) return false;
+  if (isConjugatedVerbForm(word) || isKnownProperNoun(word)) return false;
+  if (hasUsefulTranslation(item)) return true;
+  if (['der', 'die', 'das'].includes(item?.article) && word.split(/\s+/).length >= 2) return true;
+  if ((item?.type || '').toLowerCase() === 'verb' && /en$/i.test(word)) return true;
+  if (hasUsefulExample(item) && /[A-ZÄÖÜäöüß]/.test(word) && word.length >= 3) return true;
+  return false;
+}
+
 function createFallbackWord(word, text, level, topic, type = 'other') {
   const safeWord = cleanVocabularyWord(word);
   if (!safeWord) return null;
   const parts = safeWord.split(/\s+/);
   const article = ['der', 'die', 'das'].includes(parts[0]?.toLowerCase()) ? parts[0].toLowerCase() : null;
   const normalizedWord = article ? `${article} ${parts.slice(1).join(' ')}` : safeWord;
-  const [translationFr, translationAr] = TEXT_FALLBACK_TRANSLATIONS[normalizedWord] || ['élément extrait du PDF', 'عنصر مستخرج من الملف'];
+  const [translationFr, translationAr] = TEXT_FALLBACK_TRANSLATIONS[normalizedWord] || [null, null];
   return {
     word: normalizedWord,
     article,
@@ -289,7 +379,7 @@ function createFallbackWord(word, text, level, topic, type = 'other') {
     translation_fr: translationFr,
     translation_ar: translationAr,
     example_de: findExampleForTerm(text, parts[parts.length - 1] || normalizedWord),
-    example_fr: 'Exemple extrait ou reconstruit depuis le document.',
+    example_fr: null,
     level,
     topic
   };
@@ -304,7 +394,7 @@ function buildVocabularyFromText(text, level, topic) {
     const key = normalizeText(safeWord);
     if (!key || items.some(item => normalizeText(item.word) === key)) return;
     const item = createFallbackWord(safeWord, cleanText, level, topic, type);
-    if (item) items.push(item);
+    if (item && isMeaningfulVocabularyItem(item)) items.push(item);
   };
 
   for (const match of cleanText.matchAll(/\b(der|die|das)\s+[A-ZÄÖÜ][\p{L}ÄÖÜäöüß-]+/gu)) {
@@ -314,10 +404,6 @@ function buildVocabularyFromText(text, level, topic) {
   for (const match of cleanText.matchAll(/[„"]([^„”"]{4,120})[”"]/g)) {
     const phrase = match[1].trim();
     if (/[a-zäöüß]/i.test(phrase)) add(phrase, 'phrase');
-  }
-
-  for (const term of ['Ä', 'Ö', 'Ü', 'ß', 'au', 'ei', 'eu', 'äu', 'ie', 'sch', 'ch', 'chs', 'qu', 'st', 'sp', '-er', '-tion', '-ung']) {
-    if (cleanText.includes(term.replace('-', '')) || cleanText.includes(term)) add(term, 'other');
   }
 
   for (const match of cleanText.matchAll(/\b[\p{L}ÄÖÜäöüß]{4,}\b/gu)) {
@@ -427,6 +513,8 @@ function enrichLessonFromExtractedText(lesson, extractedText) {
 
 function cleanLessonVocabulary(lesson) {
   const vocabulary = [];
+  const expressions = [...(lesson?.expressions || [])];
+  const expressionKeys = new Set(expressions.map(item => normalizeText(item.expression)));
   const seen = new Set();
   for (const item of (lesson?.vocabulary || [])) {
     const safeWord = cleanVocabularyWord(item.word);
@@ -435,18 +523,35 @@ function cleanLessonVocabulary(lesson) {
     if (!key || seen.has(key)) continue;
     seen.add(key);
 
+    if (isGreetingExpression(safeWord) || (item?.type || '').toLowerCase() === 'phrase') {
+      if (!expressionKeys.has(key)) {
+        const [translationFr, translationAr] = EXPRESSION_TRANSLATIONS[key] || [item.translation_fr || null, item.translation_ar || null];
+        expressions.push({
+          expression: safeWord,
+          translation_fr: translationFr,
+          translation_ar: translationAr,
+          context: item.topic || lesson?.lesson?.topic || 'expression utile'
+        });
+        expressionKeys.add(key);
+      }
+      continue;
+    }
+
     const parts = safeWord.split(/\s+/);
     const article = ['der', 'die', 'das'].includes(parts[0]?.toLowerCase()) ? parts[0].toLowerCase() : item.article || null;
-    vocabulary.push({
+    const cleanedItem = {
       ...item,
       word: safeWord,
       article
-    });
+    };
+    if (!isMeaningfulVocabularyItem(cleanedItem)) continue;
+    vocabulary.push(cleanedItem);
   }
 
   return {
     ...lesson,
-    vocabulary
+    vocabulary,
+    expressions
   };
 }
 
