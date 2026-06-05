@@ -273,9 +273,15 @@ FRONTEND_URL=http://localhost:5173
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRY=7d
 
+AI_PROVIDER=gemini
+AI_FALLBACK_PROVIDER=ollama
+
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-3.1-flash-lite
 GEMINI_ANALYSIS_MAX_CHARS=60000
+
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:latest
 
 UPLOAD_MAX_SIZE_MB=25
 PDF_TEXT_MIN_CHARS=200
@@ -300,6 +306,13 @@ GEMINI_TTS_LENA_VOICE=Kore
 GEMINI_TTS_SAMIR_VOICE=Puck
 GEMINI_TTS_DEFAULT_VOICE=Kore
 ```
+
+AI provider behavior:
+
+- `AI_PROVIDER=gemini` tries Gemini first.
+- `AI_FALLBACK_PROVIDER=ollama` lets text/JSON tasks fall back to Ollama if Gemini is unavailable, quota-limited, or missing a key.
+- `AI_PROVIDER=ollama` uses Ollama first for text/JSON tasks.
+- Raw PDF/image analysis still needs Gemini; when that fails for PDFs, the backend uses extracted PDF text and can then call Ollama.
 
 Frontend variables in `frontend/.env`:
 

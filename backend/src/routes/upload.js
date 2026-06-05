@@ -1256,8 +1256,19 @@ router.post('/', upload.single('file'), async (req, res) => {
       // 🔧 PRIORITÉ: Analyse directe du PDF par Gemini (plus complète qu'extraction texte)
       // Gemini a meilleur OCR et comprend mieux la structure PDF
       console.log('📄 Analyzing PDF directly with Gemini...');
-      lesson = await analyzeLessonFile(fileBuffer, mimetype);
-      console.log(`✅ Gemini analysis complete: "${lesson.lesson?.title}" | Words: ${(lesson.vocabulary || []).length} | Grammar: ${(lesson.grammar || []).length}`);
+      try {
+        lesson = await analyzeLessonFile(fileBuffer, mimetype);
+        console.log(`✅ Gemini analysis complete: "${lesson.lesson?.title}" | Words: ${(lesson.vocabulary || []).length} | Grammar: ${(lesson.grammar || []).length}`);
+      } catch (e) {
+        console.warn(`⚠️ Direct Gemini PDF analysis failed: ${e.message}`);
+        if (extractedText.length >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)) {
+          console.log('📝 Trying extracted text analysis with configured AI provider/fallback...');
+          lesson = await analyzeLessonText(extractedText);
+          console.log(`✅ Text analysis complete: "${lesson.lesson?.title}" | Words: ${(lesson.vocabulary || []).length} | Grammar: ${(lesson.grammar || []).length}`);
+        } else {
+          throw e;
+        }
+      }
       
       // Si le résultat semble incomplet, essayer l'extraction texte comme fallback
       if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson) || lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })) {

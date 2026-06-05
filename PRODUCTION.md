@@ -65,9 +65,15 @@ FRONTEND_URL=https://yourdomain.com
 JWT_SECRET=votre-clé-secrète-très-longue-32-caractères-minimum
 JWT_EXPIRY=7d
 
+AI_PROVIDER=gemini
+AI_FALLBACK_PROVIDER=ollama
+
 GEMINI_API_KEY=votre-gemini-api-key
 GEMINI_MODEL=gemini-3.1-flash-lite
 GEMINI_ANALYSIS_MAX_CHARS=60000
+
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:latest
 
 UPLOAD_MAX_SIZE_MB=25
 PDF_TEXT_MIN_CHARS=200
@@ -79,6 +85,8 @@ LOG_LEVEL=info
 - Ne jamais commiter le `.env`
 - Changer `JWT_SECRET` en production
 - Minimum 32 caractères pour JWT_SECRET
+- Si `AI_FALLBACK_PROVIDER=ollama`, installer Ollama et précharger le modèle choisi (`ollama pull llama3.2:latest`)
+- Gemini reste recommandé pour les PDFs/images bruts; Ollama sert surtout de relais pour texte/JSON.
 
 ### Frontend `.env`
 

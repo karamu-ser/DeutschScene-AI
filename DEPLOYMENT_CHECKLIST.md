@@ -16,6 +16,7 @@
 - [ ] Set up logging rotation (Winston handles this)
 - [ ] Configure database backups
 - [ ] Set up monitoring/alerting
+- [ ] If using Ollama fallback, install Ollama and pull `OLLAMA_MODEL`
 
 ### Testing
 - [ ] Run `npm test` - all pass
@@ -30,6 +31,7 @@
 - [ ] Test “Aujourd’hui” daily path in demo mode
 - [ ] Test lesson enhancer: `POST /api/generated-content/lessons/:id/enhance`
 - [ ] Test dialogue naturalizer from the Dialogues tab
+- [ ] Test Gemini outage/quota behavior and Ollama fallback for text/JSON tasks
 - [ ] Test vocabulary **Exporter PDF** and browser “Save as PDF”
 
 ### Documentation

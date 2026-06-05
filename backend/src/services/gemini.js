@@ -2,6 +2,10 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const MODEL    = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const API_OPTS = { apiVersion: 'v1beta' };
+const AI_PROVIDER = String(process.env.AI_PROVIDER || 'gemini').toLowerCase();
+const AI_FALLBACK_PROVIDER = String(process.env.AI_FALLBACK_PROVIDER || 'ollama').toLowerCase();
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:latest';
 
 const CONVERSATION_LEVEL_GUIDE = {
   A1: 'phrases tres courtes, vocabulaire de base, present, une question simple a la fois',
@@ -647,6 +651,36 @@ function getModel(apiKey) {
   return genAI.getGenerativeModel({ model: MODEL }, API_OPTS);
 }
 
+function getOptionalGeminiModel() {
+  return process.env.GEMINI_API_KEY ? getModel(process.env.GEMINI_API_KEY) : null;
+}
+
+function makeTextResponse(text, provider = 'ollama') {
+  return {
+    provider,
+    response: {
+      text: () => text
+    }
+  };
+}
+
+function payloadToPrompt(payload) {
+  if (typeof payload === 'string') return payload;
+  if (Array.isArray(payload)) {
+    return payload
+      .filter(part => typeof part === 'string')
+      .join('\n\n')
+      .trim();
+  }
+  return String(payload || '');
+}
+
+function isTextOnlyPayload(payload) {
+  if (typeof payload === 'string') return true;
+  if (!Array.isArray(payload)) return false;
+  return payload.every(part => typeof part === 'string');
+}
+
 function extractRetryDelay(message) {
   const match = String(message || '').match(/retryDelay[":\s]+(\d+)s/i)
     || String(message || '').match(/Please retry in ([\d.]+)s/i);
@@ -691,11 +725,80 @@ function normalizeGeminiError(error) {
   return err;
 }
 
+async function generateGeminiContent(model, payload) {
+  if (!model) {
+    const err = new Error('GEMINI_API_KEY not set in .env');
+    err.code = 'GEMINI_API_KEY_MISSING';
+    err.status = 401;
+    throw err;
+  }
+  return model.generateContent(payload);
+}
+
+async function generateOllamaContent(payload) {
+  const prompt = payloadToPrompt(payload);
+  if (!prompt) {
+    const err = new Error('Ollama fallback needs text content.');
+    err.code = 'OLLAMA_UNSUPPORTED_PAYLOAD';
+    err.status = 400;
+    throw err;
+  }
+
+  const response = await fetch(`${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      prompt,
+      stream: false,
+      format: 'json'
+    })
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    const err = new Error(`Ollama error ${response.status}: ${text}`);
+    err.code = 'OLLAMA_ERROR';
+    err.status = response.status;
+    throw err;
+  }
+
+  const data = JSON.parse(text || '{}');
+  if (!data.response) {
+    const err = new Error('Ollama returned an empty response.');
+    err.code = 'OLLAMA_EMPTY_RESPONSE';
+    err.status = 502;
+    throw err;
+  }
+  return makeTextResponse(data.response, 'ollama');
+}
+
 async function generateContent(model, payload) {
+  const preferOllama = AI_PROVIDER === 'ollama';
+  const allowOllamaFallback = (AI_FALLBACK_PROVIDER === 'ollama' || AI_PROVIDER === 'ollama') && isTextOnlyPayload(payload);
+
+  if (preferOllama && isTextOnlyPayload(payload)) {
+    try {
+      return await generateOllamaContent(payload);
+    } catch (ollamaError) {
+      if (!model) throw ollamaError;
+      console.warn(`⚠️ Ollama failed, trying Gemini: ${ollamaError.message}`);
+      return generateGeminiContent(model, payload);
+    }
+  }
+
   try {
-    return await model.generateContent(payload);
+    return await generateGeminiContent(model, payload);
   } catch (error) {
-    throw normalizeGeminiError(error);
+    const geminiError = normalizeGeminiError(error);
+    if (!allowOllamaFallback) throw geminiError;
+    try {
+      console.warn(`⚠️ Gemini failed, trying Ollama fallback: ${geminiError.message}`);
+      return await generateOllamaContent(payload);
+    } catch (ollamaError) {
+      ollamaError.geminiError = geminiError.message;
+      throw ollamaError;
+    }
   }
 }
 
@@ -706,9 +809,7 @@ function cleanJSON(text) {
 }
 
 async function analyzeLessonFile(fileBuffer, mimeType) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const result = await generateContent(model, [
     LESSON_ANALYSIS_PROMPT,
     { inlineData: { data: fileBuffer.toString('base64'), mimeType } }
@@ -723,9 +824,7 @@ async function analyzeLessonFile(fileBuffer, mimeType) {
 }
 
 async function analyzeLessonText(text) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const maxAnalysisChars = Number(process.env.GEMINI_ANALYSIS_MAX_CHARS || 60000);
   const fullText = String(text || '').slice(0, maxAnalysisChars);
   const result = await generateContent(
@@ -751,9 +850,7 @@ async function extractVocabularyFromText(text) {
 }
 
 async function checkPronunciation(expected, spoken) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const result = await generateContent(
     model,
     PRONUNCIATION_PROMPT.replace('{expected}', expected).replace('{spoken}', spoken)
@@ -773,9 +870,7 @@ async function checkPronunciation(expected, spoken) {
 }
 
 async function summarizeLessonsForReview(lessons) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const payload = JSON.stringify(lessons).slice(0, 60000);
   const result = await generateContent(model, `${LESSON_SUMMARY_PROMPT}\n\nLEÇONS À RÉSUMER :\n${payload}`);
   const clean = cleanJSON(result.response.text());
@@ -788,9 +883,7 @@ async function summarizeLessonsForReview(lessons) {
 }
 
 async function generateGermanBasics(lessons = []) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const payload = JSON.stringify(lessons).slice(0, 50000);
   const result = await generateContent(
     model,
@@ -806,9 +899,7 @@ async function generateGermanBasics(lessons = []) {
 }
 
 async function generateDialogueFilmScene(content) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const result = await generateContent(
     model,
     `${DIALOGUE_FILM_PROMPT}\n\nCONTENU RÉEL EXTRAIT DU PDF :\n${JSON.stringify(content).slice(0, 30000)}`
@@ -823,11 +914,8 @@ async function generateDialogueFilmScene(content) {
 }
 
 async function generateConversationReply({ level, topic, userText, history = [], topicVocabulary = [] }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-
   const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const payload = {
     level: normalizedLevel,
     topic: topic || 'Alltag',
@@ -881,11 +969,8 @@ ${JSON.stringify(payload).slice(0, 25000)}
 }
 
 async function generateAiLehrerReply({ lessonContent, userAnswer, expectedAnswer, question = null, history = [], level = 'A1' }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-
   const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const payload = {
     level: normalizedLevel,
     lessonContent,
@@ -963,11 +1048,8 @@ ${JSON.stringify(payload).slice(0, 45000)}
 }
 
 async function generateStoryFromLesson({ lessonContent, level = 'A1' }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-
   const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const prompt = `
 Tu es un professeur d'allemand. Cree une petite histoire adaptee au niveau ${normalizedLevel}.
 
@@ -1020,11 +1102,8 @@ ${JSON.stringify(lessonContent).slice(0, 45000)}
 }
 
 async function generateEnhancedLesson({ lessonContent, level = 'A1' }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-
   const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : (lessonContent?.lesson?.level || 'A1');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const prompt = `${ENHANCED_LESSON_PROMPT.replaceAll('{niveau}', normalizedLevel)}
 
 LEÇON ACTUELLE JSON:
@@ -1042,11 +1121,8 @@ ${JSON.stringify(lessonContent).slice(0, 50000)}
 }
 
 async function generateEnhancedDialogue({ dialogue, level = 'A1', lessonContent = null }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-
   const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : (lessonContent?.lesson?.level || 'A1');
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const payload = {
     level: normalizedLevel,
     dialogue,
@@ -1074,11 +1150,8 @@ ${JSON.stringify(payload).slice(0, 35000)}
 }
 
 async function generatePremiumContent({ content, level = 'A1', context = null }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
-
   const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
-  const model = getModel(apiKey);
+  const model = getOptionalGeminiModel();
   const payload = {
     level: normalizedLevel,
     content,
