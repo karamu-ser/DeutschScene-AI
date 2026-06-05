@@ -91,17 +91,25 @@ function checkPronunciationLocally(expected, spoken) {
     score,
     correct_words: score >= 80 ? [expected] : [],
     wrong_words: score < 80 ? [expected] : [],
-    feedback_fr: getFeedback(score),
+    feedback_fr: getFeedback(score, expected, spoken),
     feedback_ar: getFeedbackAr(score)
   };
 }
 
-function getFeedback(score) {
-  if (score === 100) return 'Parfait ! Excellente prononciation.';
-  if (score >= 80) return 'Très bien ! Quelques petites améliorations possibles.';
-  if (score >= 60) return 'Bien ! Continue à t\'entraîner, tu progresses.';
-  if (score >= 40) return 'Pas mal. Écoute à nouveau et répète lentement.';
-  return 'Continue à pratiquer. Écoute bien chaque syllabe.';
+function getFeedback(score, expected, spoken) {
+  if (score === 100) {
+    return `Excellent ! Tu as prononcé "${expected}" clairement. Point fort : la forme reconnue correspond exactement. Pour progresser, répète maintenant le mot dans une phrase courte.`;
+  }
+  if (score >= 80) {
+    return `Très bien, ta prononciation est déjà compréhensible. Tu as dit "${spoken}". Axe d'amélioration : vise une articulation plus nette de "${expected}". Réécoute le mot, puis répète-le lentement une fois et naturellement une fois.`;
+  }
+  if (score >= 60) {
+    return `Bien, tu avances. On reconnaît une partie de "${expected}", mais certains sons ne sont pas encore stables. Exemple : compare lentement "${expected}" avec ce que tu as dit, "${spoken}". Suggestion : découpe le mot en petites syllabes et répète trois fois.`;
+  }
+  if (score >= 40) {
+    return `Bonne tentative, ne lâche pas. Le mot attendu était "${expected}", mais la reconnaissance a entendu "${spoken}". Travaille d'abord le début du mot, puis ajoute la fin. Suggestion : écoute, fais une pause, puis répète très lentement.`;
+  }
+  return `C'est normal au début, certains sons allemands demandent du temps. Le mot attendu était "${expected}". Commence par écouter seulement, puis répète en séparant chaque syllabe. Objectif concret : obtenir d'abord 40/100, puis 60/100.`;
 }
 
 function getFeedbackAr(score) {

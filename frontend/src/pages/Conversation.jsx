@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { getTopics, practiceConversation } from '../api/client';
 import { useRecognition, useSpeech } from '../hooks/useSpeech';
 
@@ -17,8 +18,9 @@ const BASE_TOPICS = [
 ];
 
 export default function Conversation() {
-  const [level, setLevel] = useState('A1');
-  const [topic, setTopic] = useState('Begrüßungen');
+  const [searchParams] = useSearchParams();
+  const [level, setLevel] = useState(searchParams.get('level') || 'A1');
+  const [topic, setTopic] = useState(searchParams.get('topic') || 'Begrüßungen');
   const [customTopics, setCustomTopics] = useState([]);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -39,7 +41,10 @@ export default function Conversation() {
       .catch(() => setCustomTopics([]));
   }, []);
 
-  const topics = useMemo(() => [...BASE_TOPICS, ...customTopics], [customTopics]);
+  const topics = useMemo(() => {
+    const items = [...BASE_TOPICS, ...customTopics];
+    return items.includes(topic) ? items : [topic, ...items];
+  }, [customTopics, topic]);
 
   const history = messages.slice(-8).map(message => ({
     role: message.role,

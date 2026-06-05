@@ -1,166 +1,242 @@
-const PAGE_WIDTH = 595;
-const PAGE_HEIGHT = 842;
-const MARGIN_X = 48;
-const MARGIN_TOP = 54;
-const LINE_HEIGHT = 15;
-const MAX_LINES = 48;
-
-function cleanText(value) {
+function escapeHtml(value) {
   return String(value || '')
-    .replace(/ß/g, 'ss')
-    .replace(/ẞ/g, 'SS')
-    .replace(/[’‘]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, '-')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-function escapePdfText(value) {
-  return cleanText(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
+function displayWord(word) {
+  const raw = String(word.word || '').replace(/^(der|die|das)\s+/i, '').trim();
+  return [word.article, raw].filter(Boolean).join(' ');
 }
 
-function wrapLine(text, maxChars = 86) {
-  const words = cleanText(text).split(' ').filter(Boolean);
-  const lines = [];
-  let current = '';
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = next;
+function wordCard(word, index) {
+  const examples = [
+    word.example_de && `<p class="example"><strong>DE</strong> ${escapeHtml(word.example_de)}</p>`,
+    word.example_fr && `<p class="example"><strong>FR</strong> ${escapeHtml(word.example_fr)}</p>`
+  ].filter(Boolean).join('');
+
+  return `
+    <article class="word-card">
+      <div class="word-head">
+        <span class="index">${index + 1}</span>
+        <div>
+          <h2>${escapeHtml(displayWord(word) || 'Mot sans titre')}</h2>
+          <p class="meta">
+            ${escapeHtml(word.type || 'mot')}
+            ${word.level ? ` · ${escapeHtml(word.level)}` : ''}
+            ${word.topic ? ` · ${escapeHtml(word.topic)}` : ''}
+          </p>
+        </div>
+      </div>
+      <div class="translations">
+        <p><strong>Français</strong><span>${escapeHtml(word.translation_fr || '-')}</span></p>
+        ${word.translation_ar ? `<p dir="rtl"><strong>العربية</strong><span>${escapeHtml(word.translation_ar)}</span></p>` : ''}
+      </div>
+      ${word.plural ? `<p class="small"><strong>Pluriel</strong> ${escapeHtml(word.plural)}</p>` : ''}
+      ${examples || `<p class="example"><strong>DE</strong> Ich lerne das Wort "${escapeHtml(String(word.word || '').replace(/^(der|die|das)\s+/i, ''))}".</p>`}
+    </article>
+  `;
+}
+
+function buildVocabularyHtml(words) {
+  const generatedAt = new Date().toLocaleDateString('fr-FR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  return `<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>DeutschScene AI - Vocabulaire</title>
+  <style>
+    @page { margin: 16mm 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #171717;
+      background: #fff;
+      font-family: Inter, "Segoe UI", Arial, "Noto Sans Arabic", sans-serif;
+      line-height: 1.45;
     }
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [''];
-}
-
-function addLine(lines, text = '', options = {}) {
-  lines.push({
-    text: cleanText(text),
-    size: options.size || 10,
-    bold: Boolean(options.bold)
-  });
-}
-
-function buildVocabularyLines(words) {
-  const lines = [];
-  addLine(lines, 'DeutschScene AI - Vocabulaire', { size: 18, bold: true });
-  addLine(lines, `Total: ${words.length} mots`, { size: 10 });
-  addLine(lines, '');
-
-  words.forEach((word, index) => {
-    const displayWord = [word.article, word.word].filter(Boolean).join(' ').replace(/\s+/g, ' ');
-    addLine(lines, `${index + 1}. ${displayWord || 'Mot sans titre'}`, { size: 13, bold: true });
-    addLine(lines, `Type: ${word.type || '-'} | Niveau: ${word.level || '-'} | Theme: ${word.topic || '-'}`);
-    addLine(lines, `FR: ${word.translation_fr || '-'}`);
-    if (word.plural) addLine(lines, `Plural: ${word.plural}`);
-
-    const examples = [
-      word.example_de && `Exemple DE: ${word.example_de}`,
-      word.example_fr && `Exemple FR: ${word.example_fr}`
-    ].filter(Boolean);
-
-    if (examples.length) {
-      examples.forEach(example => {
-        wrapLine(example).forEach(line => addLine(lines, line));
-      });
-    } else {
-      const base = cleanText(word.word).replace(/^(der|die|das)\s+/i, '');
-      addLine(lines, `Exemple DE: Ich lerne das Wort "${base}".`);
-      addLine(lines, `Exemple FR: J'apprends le mot "${base}".`);
+    header {
+      border-bottom: 3px solid #e8c547;
+      padding-bottom: 16px;
+      margin-bottom: 18px;
     }
-    addLine(lines, '');
-  });
-  return lines;
-}
-
-function paginate(lines) {
-  const pages = [];
-  for (let i = 0; i < lines.length; i += MAX_LINES) {
-    pages.push(lines.slice(i, i + MAX_LINES));
-  }
-  return pages.length ? pages : [[{ text: 'Aucun vocabulaire a exporter.', size: 12 }]];
-}
-
-function pageContent(lines, pageNumber, pageCount) {
-  const commands = [
-    'BT',
-    `/F1 10 Tf`,
-    `${MARGIN_X} ${PAGE_HEIGHT - MARGIN_TOP} Td`
-  ];
-
-  lines.forEach((line, index) => {
-    if (index > 0) commands.push(`0 -${LINE_HEIGHT} Td`);
-    commands.push(`/F${line.bold ? 2 : 1} ${line.size} Tf`);
-    commands.push(`(${escapePdfText(line.text)}) Tj`);
-  });
-
-  commands.push('ET');
-  commands.push('BT');
-  commands.push('/F1 8 Tf');
-  commands.push(`${MARGIN_X} 30 Td`);
-  commands.push(`(Page ${pageNumber} / ${pageCount}) Tj`);
-  commands.push('ET');
-  return commands.join('\n');
-}
-
-function buildPdf(pages) {
-  const objects = [];
-  const addObject = content => {
-    objects.push(content);
-    return objects.length;
-  };
-
-  const catalogId = addObject('<< /Type /Catalog /Pages 2 0 R >>');
-  const pagesId = addObject('');
-  const fontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  const boldFontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-  const pageIds = [];
-
-  pages.forEach((lines, index) => {
-    const content = pageContent(lines, index + 1, pages.length);
-    const contentId = addObject(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
-    const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
-    pageIds.push(pageId);
-  });
-
-  objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
-
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xrefOffset = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-  offsets.slice(1).forEach(offset => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return pdf;
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin: 0;
+      color: #555;
+      font-size: 13px;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .summary div {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fafafa;
+    }
+    .summary strong {
+      display: block;
+      font-size: 20px;
+    }
+    .summary span {
+      color: #666;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .word-card {
+      break-inside: avoid;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 13px;
+      background: #fff;
+    }
+    .word-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .index {
+      width: 28px;
+      height: 28px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #e8c547;
+      color: #111;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .meta,
+    .small {
+      margin: 2px 0 0;
+      color: #666;
+      font-size: 12px;
+    }
+    .translations {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .translations p,
+    .example {
+      margin: 0;
+      border-radius: 6px;
+      background: #f6f6f6;
+      padding: 7px 8px;
+      font-size: 13px;
+    }
+    .translations strong,
+    .example strong,
+    .small strong {
+      color: #222;
+      margin-right: 6px;
+    }
+    .translations span {
+      color: #333;
+    }
+    .example {
+      margin-top: 6px;
+    }
+    footer {
+      margin-top: 20px;
+      color: #777;
+      font-size: 11px;
+      text-align: center;
+    }
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DeutschScene AI - Vocabulaire</h1>
+    <p class="subtitle">Fiche exportée le ${escapeHtml(generatedAt)} · prête pour impression ou PDF</p>
+  </header>
+  <section class="summary">
+    <div><strong>${words.length}</strong><span>Mots</span></div>
+    <div><strong>${new Set(words.map(word => word.topic).filter(Boolean)).size}</strong><span>Thèmes</span></div>
+    <div><strong>${new Set(words.map(word => word.level).filter(Boolean)).size || 1}</strong><span>Niveaux</span></div>
+  </section>
+  <main class="grid">
+    ${words.length ? words.map(wordCard).join('') : '<p>Aucun vocabulaire à exporter.</p>'}
+  </main>
+  <footer>DeutschScene AI · Vocabulaire généré depuis tes leçons</footer>
+</body>
+</html>`;
 }
 
 export function downloadVocabularyPdf(words, filename = 'deutschscene-vocabulary.pdf') {
-  const pages = paginate(buildVocabularyLines(words));
-  const pdf = buildPdf(pages);
-  const blob = new Blob([pdf], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  const html = buildVocabularyHtml(words);
+  const title = filename.replace(/\.pdf$/i, '');
+  const printWindow = window.open('', '_blank', 'width=960,height=720');
+
+  if (!printWindow) {
+    printFromIframe(html, title);
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.document.title = title;
+  printWindow.focus();
+
+  window.setTimeout(() => {
+    printWindow.print();
+  }, 450);
+}
+
+function printFromIframe(html, title) {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const iframeWindow = iframe.contentWindow;
+  if (!iframeWindow) {
+    iframe.remove();
+    return;
+  }
+
+  iframeWindow.document.open();
+  iframeWindow.document.write(html);
+  iframeWindow.document.close();
+  iframeWindow.document.title = title;
+
+  window.setTimeout(() => {
+    iframeWindow.focus();
+    iframeWindow.print();
+    window.setTimeout(() => iframe.remove(), 1000);
+  }, 450);
 }

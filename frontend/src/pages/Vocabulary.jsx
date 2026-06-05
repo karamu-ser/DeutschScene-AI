@@ -86,7 +86,7 @@ export default function Vocabulary() {
           </button>
         )}
         <button className="btn btn-primary btn-sm" onClick={handleDownloadPdf} disabled={filtered.length === 0}>
-          Télécharger PDF
+          Exporter PDF
         </button>
         <button className="btn btn-ghost btn-sm" onClick={() => setStudyMode(value => !value)} disabled={filtered.length === 0}>
           {studyMode ? 'Masquer animation' : 'Mode mémorisation'}

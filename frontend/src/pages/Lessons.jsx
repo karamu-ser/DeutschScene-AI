@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { VocabTab, GrammarTab, DialoguesTab, ExpressionsTab, ExercisesTab } from './Upload';
-import { getLessons, getLessonById, deleteLesson } from '../api/client';
+import { getLessons, getLessonById, deleteLesson, enhanceLesson } from '../api/client';
 
 export default function Lessons() {
   const [lessons, setLessons] = useState([]);
@@ -9,6 +9,8 @@ export default function Lessons() {
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [lessonData, setLessonData] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [enhancedLesson, setEnhancedLesson] = useState(null);
+  const [enhancing, setEnhancing] = useState(false);
   const [activeTab, setActiveTab] = useState('vocabulary');
   const [error, setError] = useState(null);
 
@@ -32,6 +34,7 @@ export default function Lessons() {
     setSelectedLessonId(id);
     setLoadingDetails(true);
     setLessonData(null);
+    setEnhancedLesson(null);
 
     try {
       const { data } = await getLessonById(id);
@@ -49,6 +52,24 @@ export default function Lessons() {
       setError("Erreur lors du chargement des détails de la leçon.");
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleEnhanceLesson = async () => {
+    if (!selectedLessonId || enhancing) return;
+    setEnhancing(true);
+    setError(null);
+    try {
+      const { data } = await enhanceLesson(selectedLessonId, {
+        level: lessonData?.lesson?.level || 'A1'
+      });
+      setEnhancedLesson(data.content || data);
+      setActiveTab('enhanced');
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.error || "Erreur lors de la génération de la leçon améliorée.");
+    } finally {
+      setEnhancing(false);
     }
   };
 
@@ -74,6 +95,7 @@ export default function Lessons() {
       { id:'dialogues',    label:'💬 Dialogues',    count: result?.dialogues?.length     || 0 },
       { id:'expressions',  label:'🗣️ Expressions', count: result?.expressions?.length   || 0 },
       { id:'exercises',    label:'✏️ Exercices',    count: result?.exercises?.length     || 0 },
+      { id:'enhanced',     label:'✨ DeutschScene', count: enhancedLesson ? 1 : 1 },
     ];
 
     return (
@@ -97,6 +119,9 @@ export default function Lessons() {
               <div style={{display:'flex',gap:8}}>
                 <Link to="/flashcards" className="btn btn-primary btn-sm">🃏 Flashcards</Link>
                 <Link to="/quiz" className="btn btn-ghost btn-sm">🧠 Quiz</Link>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={handleEnhanceLesson} disabled={enhancing}>
+                  {enhancing ? 'Génération...' : '✨ Améliorer'}
+                </button>
               </div>
             </div>
             {result.lesson?.objectives?.length > 0 && (
@@ -131,9 +156,20 @@ export default function Lessons() {
 
           {activeTab==='vocabulary'  && <VocabTab    words={result.vocabulary||[]}/>}
           {activeTab==='grammar'     && <GrammarTab  rules={result.grammar||[]}/>}
-          {activeTab==='dialogues'   && <DialoguesTab dialogues={result.dialogues||[]}/>}
+          {activeTab==='dialogues'   && <DialoguesTab dialogues={result.dialogues||[]} lessonId={selectedLessonId} level={result.lesson?.level || 'A1'}/>}
           {activeTab==='expressions' && <ExpressionsTab expressions={result.expressions||[]}/>}
           {activeTab==='exercises'   && <ExercisesTab exercises={result.exercises||[]}/>}
+          {activeTab==='enhanced'     && (
+            enhancedLesson
+              ? <EnhancedLessonView lesson={enhancedLesson} />
+              : <div className="card" style={{ textAlign: 'center' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 8 }}>Version DeutschScene</h3>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Transforme cette leçon en parcours immersif avec scène, dialogues, défis et corrections.</p>
+                  <button className="btn btn-primary" type="button" onClick={handleEnhanceLesson} disabled={enhancing}>
+                    {enhancing ? 'Génération en cours...' : 'Générer la leçon améliorée'}
+                  </button>
+                </div>
+          )}
       </div>
     );
   }
@@ -179,6 +215,175 @@ export default function Lessons() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function EnhancedLessonView({ lesson }) {
+  const scene = lesson.opening_scene || {};
+  const scenes = (lesson.deutsch_scenes || []).length
+    ? lesson.deutsch_scenes
+    : scene.title || (scene.dialogue || []).length
+      ? [{
+        title: scene.title || 'DeutschScene',
+        real_life_context_fr: scene.context_fr,
+        dialogue: scene.dialogue || [],
+        quick_check: scene.comprehension_questions || []
+      }]
+      : [];
+
+  return (
+    <div className="enhanced-lesson">
+      <section className="card enhanced-hero">
+        <span>{lesson.level || 'A1'}</span>
+        <h3>{lesson.attractive_title || lesson.title || 'Leçon améliorée'}</h3>
+        <p>{lesson.objective_fr}</p>
+        {(lesson.objectives || []).length > 0 && (
+          <div className="enhanced-objectives">
+            {lesson.objectives.map((objective, index) => <strong key={index}>{objective}</strong>)}
+          </div>
+        )}
+      </section>
+
+      {(lesson.progression || []).length > 0 && (
+        <section className="card enhanced-section">
+          <h3>Progression</h3>
+          <div className="enhanced-progression">
+            {lesson.progression.map((step, index) => (
+              <div key={`${step.step}-${index}`}>
+                <strong>{step.step}</strong>
+                <span>{step.goal_fr}</span>
+                <small>{step.estimated_minutes || 3} min</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {scenes.map((item, sceneIndex) => (
+        <section className="card enhanced-section" key={`${item.title}-${sceneIndex}`}>
+          <h3>{item.title || `DeutschScene ${sceneIndex + 1}`}</h3>
+          {(item.real_life_context_fr || item.context_fr) && <p>{item.real_life_context_fr || item.context_fr}</p>}
+          {item.communication_goal_fr && <div className="enhanced-goal">{item.communication_goal_fr}</div>}
+          <div className="enhanced-dialogue">
+            {(item.dialogue || []).map((line, index) => (
+              <div key={`${line.speaker}-${index}`}>
+                <strong>{line.speaker}</strong>
+                <span>{line.de}</span>
+                <small>{line.fr}</small>
+                {line.target && <em>{line.target}</em>}
+              </div>
+            ))}
+          </div>
+          {((item.quick_check || item.comprehension_questions || [])).length > 0 && (
+            <div className="enhanced-questions">
+              {(item.quick_check || item.comprehension_questions || []).map((question, index) => (
+                <details key={`${question.question_fr}-${index}`}>
+                  <summary>{question.question_fr}</summary>
+                  <span>{question.answer_fr}</span>
+                </details>
+              ))}
+            </div>
+          )}
+        </section>
+      ))}
+
+      <div className="enhanced-two-col">
+        <section className="card enhanced-section">
+          <h3>Vocabulaire en contexte</h3>
+          {(lesson.vocabulary || []).map((word, index) => (
+            <div className="enhanced-row" key={`${word.de}-${index}`}>
+              <strong>{word.article ? `${word.article} ${word.de}` : word.de}</strong>
+              <span>{word.fr}</span>
+              <small>{word.example_de}</small>
+              {word.communication_use_fr && <small>{word.communication_use_fr}</small>}
+            </div>
+          ))}
+        </section>
+
+        <section className="card enhanced-section">
+          <h3>Grammaire utile</h3>
+          {(lesson.grammar_in_context || []).map((rule, index) => (
+            <div className="enhanced-row" key={`${rule.title}-${index}`}>
+              <strong>{rule.title}</strong>
+              <span>{rule.explanation_fr}</span>
+              {(rule.examples || []).slice(0, 2).map((example, exampleIndex) => (
+                <small key={exampleIndex}>{example.de} - {example.fr}</small>
+              ))}
+              {rule.communication_use_fr && <small>{rule.communication_use_fr}</small>}
+            </div>
+          ))}
+        </section>
+      </div>
+
+      {((lesson.communication_tasks || []).length > 0 || (lesson.culture_tips || []).length > 0) && (
+        <div className="enhanced-two-col">
+          {(lesson.communication_tasks || []).length > 0 && (
+            <section className="card enhanced-section">
+              <h3>Communication</h3>
+              {(lesson.communication_tasks || []).map((task, index) => (
+                <div className="enhanced-row" key={`${task.title}-${index}`}>
+                  <strong>{task.title}</strong>
+                  <span>{task.instruction_fr}</span>
+                  {(task.support_phrases || []).map((phrase, phraseIndex) => <small key={phraseIndex}>{phrase}</small>)}
+                </div>
+              ))}
+            </section>
+          )}
+
+          {(lesson.culture_tips || []).length > 0 && (
+            <section className="card enhanced-section">
+              <h3>Astuces culturelles</h3>
+              {(lesson.culture_tips || []).map((tip, index) => (
+                <div className="enhanced-row" key={`${tip.title}-${index}`}>
+                  <strong>{tip.title}</strong>
+                  <span>{tip.tip_fr}</span>
+                  {tip.example_de && <small>{tip.example_de}</small>}
+                </div>
+              ))}
+            </section>
+          )}
+        </div>
+      )}
+
+      <section className="card enhanced-section">
+        <h3>Mini-dialogues guidés</h3>
+        <div className="enhanced-dialogue-grid">
+          {(lesson.guided_dialogues || []).map((dialogue, index) => (
+            <div key={`${dialogue.title}-${index}`} className="enhanced-mini">
+              <strong>{dialogue.title}</strong>
+              <p>{dialogue.goal_fr}</p>
+              {(dialogue.lines || []).map((line, lineIndex) => (
+                <span key={lineIndex}>{line.speaker}: {line.de}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="card enhanced-section">
+        <h3>Exercices interactifs</h3>
+        <div className="enhanced-exercises">
+          {(lesson.interactive_exercises || []).map((exercise, index) => (
+            <details key={`${exercise.type}-${index}`}>
+              <summary>{exercise.instruction_fr || exercise.type}: {exercise.prompt}</summary>
+              {exercise.hint_fr && <span>Indice: {exercise.hint_fr}</span>}
+              <strong>Réponse: {exercise.answer}</strong>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      {lesson.final_challenge && (
+        <section className="card enhanced-section">
+          <h3>Défi final</h3>
+          <p>{lesson.final_challenge.mission_fr}</p>
+          <div className="enhanced-final">
+            <strong>{lesson.final_challenge.model_answer_de}</strong>
+            <span>{lesson.final_challenge.model_answer_fr}</span>
+          </div>
+        </section>
       )}
     </div>
   );

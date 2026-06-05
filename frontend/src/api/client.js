@@ -87,6 +87,132 @@ export const getReviewWords = () => isDemoMode() ? demoResponse(demoWords.slice(
 export const getMistakes = (params) => isDemoMode() ? demoResponse(demoMistakes) : api.get('/mistakes', { params });
 export const recordMistake = (data) => isDemoMode() ? demoResponse({ ...data, id: 99 }) : api.post('/mistakes', data);
 export const getGeneratedContent = (params) => isDemoMode() ? demoResponse([]) : api.get('/generated-content', { params });
+export const enhanceLesson = (lessonId, data = {}) => isDemoMode()
+  ? demoResponse({
+    type: 'enhanced_lesson',
+    cached: false,
+    content: {
+      title: 'DeutschScene - Vorstellung',
+      level: 'A1',
+      objective_fr: 'Tu sauras te présenter simplement et demander le nom et l’origine de quelqu’un.',
+      progression: [
+        { step: 'Écouter', goal_fr: 'Comprendre une mini-scène', estimated_minutes: 3 },
+        { step: 'Répéter', goal_fr: 'Réutiliser deux phrases', estimated_minutes: 4 }
+      ],
+      opening_scene: {
+        title: 'DeutschScene - Im Kurs',
+        context_fr: 'Deux apprenants se rencontrent au début d’un cours.',
+        dialogue: [
+          { speaker: 'A', de: 'Hallo, ich heiße Lena.', fr: 'Salut, je m’appelle Lena.', audio_text: 'Hallo, ich heiße Lena.' },
+          { speaker: 'B', de: 'Ich heiße Samir.', fr: 'Je m’appelle Samir.', audio_text: 'Ich heiße Samir.' }
+        ],
+        comprehension_questions: [
+          { question_fr: 'Comment s’appelle A ?', answer_fr: 'Elle s’appelle Lena.', evidence_de: 'Ich heiße Lena.' }
+        ]
+      },
+      vocabulary: demoWords.slice(0, 4).map(word => ({
+        de: word.word,
+        article: word.article || null,
+        fr: word.translation_fr,
+        example_de: word.example_de,
+        usage_note_fr: 'À utiliser dans une phrase courte.'
+      })),
+      grammar_in_context: [{
+        title: 'Le verbe en deuxième position',
+        explanation_fr: 'Dans une phrase simple, le verbe conjugué vient souvent en deuxième position.',
+        examples: [{ de: 'Ich komme aus Marokko.', fr: 'Je viens du Maroc.' }],
+        common_mistakes: [{ wrong: 'Ich aus Marokko komme.', correct: 'Ich komme aus Marokko.', why_fr: 'Le verbe kommt en position 2.' }]
+      }],
+      guided_dialogues: [{
+        title: 'Mini-dialogue',
+        goal_fr: 'Dire son nom',
+        lines: [{ speaker: 'A', de: 'Wie heißt du?', fr: 'Comment tu t’appelles ?' }, { speaker: 'B', de: 'Ich heiße Samir.', fr: 'Je m’appelle Samir.' }],
+        reuse_focus: ['heißen', 'W-Frage']
+      }],
+      interactive_exercises: [
+        { type: 'word_order', instruction_fr: 'Remets dans l’ordre.', prompt: 'komme / aus / Marokko / Ich', answer: 'Ich komme aus Marokko.', hint_fr: 'Le verbe vient en deuxième position.' }
+      ],
+      final_challenge: {
+        mission_fr: 'Présente-toi en deux phrases.',
+        requirements: ['nom', 'origine'],
+        model_answer_de: 'Ich heiße Samir. Ich komme aus Marokko.',
+        model_answer_fr: 'Je m’appelle Samir. Je viens du Maroc.'
+      },
+      feedback: {
+        answers: [{ exercise_prompt: 'komme / aus / Marokko / Ich', answer: 'Ich komme aus Marokko.' }],
+        encouragement_fr: 'Très bien, tu as déjà une base utile pour parler.',
+        next_steps: ['Répète les phrases à voix haute.', 'Essaie la conversation AI.']
+      }
+    }
+  })
+  : api.post(`/generated-content/lessons/${lessonId}/enhance`, data, { timeout: 180000 });
+export const enhanceDialogue = (data = {}) => isDemoMode()
+  ? demoResponse({
+    type: 'enhanced_dialogue',
+    content: {
+      title: 'Natürliches Kennenlernen',
+      level: data.level || 'A1',
+      context_fr: 'Deux apprenants se rencontrent au cours. Le ton est chaleureux et un peu curieux.',
+      improved_dialogue: [
+        { speaker: 'A', de: 'Hallo! Ich bin Lena. Und du?', fr: 'Salut ! Je suis Lena. Et toi ?', tone: 'amical', target: 'se présenter' },
+        { speaker: 'B', de: 'Hi, ich heiße Samir.', fr: 'Salut, je m’appelle Samir.', tone: 'calme', target: 'heißen' },
+        { speaker: 'A', de: 'Schön, dich kennenzulernen.', fr: 'Ravie de faire ta connaissance.', tone: 'chaleureux', target: 'expression utile' },
+        { speaker: 'B', de: 'Danke, mich auch.', fr: 'Merci, moi aussi.', tone: 'poli', target: 'réponse courte naturelle' },
+        { speaker: 'A', de: 'Woher kommst du denn?', fr: 'Tu viens d’où ?', tone: 'curieux', target: 'W-Frage' },
+        { speaker: 'B', de: 'Ich komme aus Marokko.', fr: 'Je viens du Maroc.', tone: 'informatif', target: 'venir de' }
+      ],
+      changes_explained: [
+        'Le dialogue commence plus naturellement avec une relance courte.',
+        'Une expression sociale utile a été ajoutée.',
+        'La question avec "denn" rend l’échange plus vivant.'
+      ],
+      useful_language: [
+        { de: 'Und du?', fr: 'Et toi ?', why_fr: 'Très fréquent pour relancer une conversation.' },
+        { de: 'Schön, dich kennenzulernen.', fr: 'Ravi de faire ta connaissance.', why_fr: 'Formule sociale très utile.' }
+      ],
+      oral_challenge: {
+        instruction_fr: 'Présente-toi puis demande à l’autre personne d’où elle vient.',
+        model_answer_de: 'Hallo, ich heiße Samir. Und du? Woher kommst du?'
+      }
+    }
+  })
+  : api.post('/generated-content/dialogues/enhance', data, { timeout: 180000 });
+export const enhancePremiumContent = (data = {}) => isDemoMode()
+  ? demoResponse({
+    type: 'premium_content',
+    content: {
+      title: 'Premium Deutsch - Vorstellung',
+      level: data.level || 'A1',
+      premium_version: {
+        overview_fr: 'Une version plus vivante pour apprendre à se présenter avec confiance.',
+        content_sections: [
+          {
+            title: 'Se présenter naturellement',
+            explanation_fr: 'On utilise des phrases courtes et utiles dans une vraie première rencontre.',
+            examples: [
+              { de: 'Hallo, ich heiße Samir.', fr: 'Salut, je m’appelle Samir.', note_fr: 'Simple, naturel et parfait pour A1.' },
+              { de: 'Ich komme aus Marokko.', fr: 'Je viens du Maroc.', note_fr: 'Structure utile pour parler de son origine.' }
+            ],
+            practice: [
+              { type: 'production', prompt: 'Présente-toi en deux phrases.', answer: 'Ich heiße ... Ich komme aus ...' }
+            ]
+          }
+        ],
+        authenticity_upgrades: [
+          { de: 'Und du?', fr: 'Et toi ?', usage_fr: 'Pour relancer une conversation simplement.' }
+        ],
+        culture_notes: [
+          { title: 'Tutoiement', fr: 'Dans un cours ou entre apprenants, "du" est naturel.', example_de: 'Wie heißt du?' }
+        ],
+        emotional_hook: {
+          context_fr: 'Tu arrives dans ton premier cours d’allemand et tu veux oser parler.',
+          learner_mission_fr: 'Dire ton nom, ton origine et poser une question à quelqu’un.'
+        },
+        next_step_fr: 'Répète les deux phrases à voix haute, puis essaie la conversation AI.'
+      }
+    }
+  })
+  : api.post('/generated-content/premium/enhance', data, { timeout: 180000 });
 export const aiLehrerMock = (data) => isDemoMode() ? demoResponse(demoAiResponse(data.user_answer)) : api.post('/ai-lehrer/mock', data);
 export const aiLehrerQuestion = (data) => isDemoMode() ? demoResponse(demoAiQuestion()) : api.post('/ai-lehrer/question', data);
 export const aiLehrerRespond = (data) => isDemoMode() ? demoResponse(demoAiResponse(data.user_answer)) : api.post('/ai-lehrer/respond', data);

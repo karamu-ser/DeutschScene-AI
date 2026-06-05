@@ -215,9 +215,14 @@ function buildMockAiLehrerResponse({ lessonContent, userAnswer, expectedAnswer, 
     level: level || lessonContent.lesson.level || 'A1',
     is_correct: isCorrect,
     score,
-    feedback_fr: !isCorrect
-      ? `Presque. ${relatedRule || 'Regarde la forme correcte.'} La bonne réponse est : ${expected}`
-      : `Très bien. Ta réponse est correcte : ${expected || answer}`,
+    feedback_fr: buildEncouragingFeedback({
+      isCorrect,
+      score,
+      expected: expected || answer,
+      userAnswer: answer,
+      relatedRule,
+      level: level || lessonContent.lesson.level || 'A1'
+    }),
     feedback_ar: !isCorrect
       ? `قريب من الصحيح. الجواب الصحيح هو: ${expected}`
       : `جيد جدا. جوابك صحيح.`,
@@ -225,6 +230,31 @@ function buildMockAiLehrerResponse({ lessonContent, userAnswer, expectedAnswer, 
     mistake,
     practice_session: practiceSession
   };
+}
+
+function buildEncouragingFeedback({ isCorrect, score, expected, userAnswer, relatedRule, level }) {
+  if (isCorrect) {
+    return [
+      `Très bien, ta réponse est correcte : ${expected}.`,
+      `Point fort : tu as utilisé une phrase adaptée au niveau ${level || 'A1'} et compréhensible.`,
+      `Pour progresser : répète-la à voix haute deux fois, puis change un seul élément pour créer une nouvelle phrase.`
+    ].join(' ');
+  }
+
+  const ruleHint = relatedRule
+    ? `Ici, le point à retravailler est : ${relatedRule}.`
+    : 'Ici, concentre-toi sur la forme correcte de la phrase.';
+  const userPart = userAnswer ? `Tu as écrit : "${userAnswer}". ` : '';
+
+  return [
+    `C'est une bonne tentative, tu es proche.`,
+    `${userPart}${ruleHint}`,
+    `La phrase modèle est : "${expected}".`,
+    `Exemple à retenir : répète "${expected}" lentement, puis réécris-la sans regarder.`,
+    score >= 60
+      ? 'Suggestion concrète : garde la même structure et remplace seulement un mot.'
+      : 'Suggestion concrète : commence par copier la phrase modèle, puis dis-la à voix haute en séparant chaque groupe de mots.'
+  ].join(' ');
 }
 
 function buildQuestionText({ level, expected, topic, skill }) {

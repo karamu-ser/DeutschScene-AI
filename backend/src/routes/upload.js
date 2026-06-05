@@ -1238,6 +1238,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     let lesson;
     let extractedTextLength = 0;
     let extractedText = '';
+    let extractionWarning = null;
 
     console.log(`📥 Upload started: ${req.file.originalname} (${mimetype})`);
 
@@ -1288,21 +1289,26 @@ router.post('/', upload.single('file'), async (req, res) => {
     if (lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })) {
       console.log('🧩 Enriching incomplete Gemini lesson from extracted PDF text...');
       lesson = enrichLessonFromExtractedText(lesson, extractedText);
+      extractionWarning = 'Le PDF a été importé, mais l’analyse IA semblait partielle. Le backend a complété la leçon avec le texte extrait du PDF.';
       console.log(`✅ Enriched lesson: Words=${(lesson.vocabulary || []).length} | Grammar=${(lesson.grammar || []).length}`);
     }
     lesson = cleanLessonVocabulary(lesson);
 
     fs.unlinkSync(filePath);
 
-    if (
-      isEmptyDocumentAnalysis(lesson) ||
-      !lessonHasContent(lesson) ||
-      lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })
-    ) {
-      console.error('❌ Upload rejected: lesson is empty or too incomplete');
+    if (isEmptyDocumentAnalysis(lesson) || !lessonHasContent(lesson)) {
+      console.error('❌ Upload rejected: lesson is empty');
       return res.status(422).json({
-        error: 'Le PDF contient plus d’informations que la leçon extraite. Relance l’import : le backend force maintenant une analyse complète. Si le problème continue, utilise un modèle Gemini plus fort pour PDF/image.'
+        error: extractedTextLength >= Number(process.env.PDF_TEXT_MIN_CHARS || 200)
+          ? 'Le PDF contient du texte, mais aucune leçon exploitable n’a pu être créée. Essaie avec un PDF plus net ou un modèle Gemini plus fort pour PDF/image.'
+          : 'Le PDF semble vide ou scanné sans texte exploitable. Essaie une image plus nette ou active un modèle Gemini plus fort pour l’OCR.'
       });
+    }
+
+    if (lessonLooksTooThinForSource(lesson, { textLength: extractedTextLength, fileSize: fileBuffer.length })) {
+      extractionWarning = extractionWarning ||
+        'La leçon a été sauvegardée, mais elle semble incomplète par rapport au PDF. Tu peux utiliser “✨ Améliorer” pour générer une version pédagogique plus riche.';
+      console.warn('⚠️ Upload accepted with partial extraction warning');
     }
 
     // 🔧 STRICT MATCHING: Check if PDF belongs to an existing lesson (rule-based, not AI)
@@ -1479,7 +1485,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       grammar:    lesson.grammar    || [],
       dialogues:  lesson.dialogues  || [],
       expressions:lesson.expressions|| [],
-      exercises:  lesson.exercises  || []
+      exercises:  lesson.exercises  || [],
+      warning: extractionWarning,
+      extracted_text_length: extractedTextLength
     });
 
   } catch (err) {

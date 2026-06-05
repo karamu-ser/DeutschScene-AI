@@ -155,6 +155,13 @@ Tu es un assistant pédagogique pour l'apprentissage de l'allemand.
 L'étudiant devait prononcer : "{expected}"
 Le système de reconnaissance vocale a transcrit : "{spoken}"
 
+Améliore le feedback pour qu'il soit :
+- encourageant et motivant ;
+- précis sur ce qui est réussi et ce qui doit être amélioré ;
+- clair, avec un exemple concret ;
+- accompagné d'une suggestion courte pour progresser ;
+- positif et bienveillant.
+
 Retourne UNIQUEMENT ce JSON :
 {"score":<0-100>,"correct_words":[...],"wrong_words":[...],"feedback_fr":"conseil en français","feedback_ar":"نصيحة بالعربية الدارجة"}
 `;
@@ -384,6 +391,255 @@ RÈGLES :
 7. Ne mets jamais trois questions dans une seule réplique.
 8. Ne saute pas une notion importante présente dans "grammar_points", "useful_words", "expressions" ou "practice_goals".
 9. Aucun markdown, seulement JSON.
+`;
+
+const ENHANCED_LESSON_PROMPT = `
+Tu es un expert pédagogique en allemand langue étrangère, spécialisé dans l'apprentissage immersif, la progression CECRL et la mémorisation active.
+
+Ta mission: tu as analysé un chapitre de manuel allemand. Transforme la leçon JSON ci-dessous en une expérience d'apprentissage moderne, vivante et beaucoup plus efficace pour un apprenant adulte de niveau {niveau}.
+
+Objectifs prioritaires:
+1. Transformer le contenu scolaire classique en scènes de vie réelle.
+2. Créer un bon équilibre Vocabulaire / Grammaire / Communication.
+3. Organiser la progression du plus simple au plus complexe.
+4. Proposer des exercices variés et progressifs: compréhension, production, oral, grammaire.
+5. Ajouter des astuces culturelles allemandes quand pertinent.
+6. Rendre le tout motivant, adulte, concret et immédiatement utilisable.
+7. Adapter précisément la difficulté au niveau {niveau}.
+
+Contraintes de niveau:
+- A1/A2: phrases allemandes courtes, vocabulaire courant, consignes très simples.
+- B1/B2: ajoute connecteurs, nuances utiles et tâches de production plus ouvertes.
+- C1/C2: ajoute registre, précision stylistique, idiomes naturels et reformulation.
+
+Retourne UNIQUEMENT ce JSON valide, sans markdown:
+{
+  "title": "titre de la leçon",
+  "attractive_title": "titre attractif et moderne",
+  "level": "{niveau}",
+  "objective_fr": "objectif clair en français",
+  "objectives": [
+    "objectif concret 1",
+    "objectif concret 2",
+    "objectif communicationnel 3"
+  ],
+  "progression": [
+    { "step": "étape", "goal_fr": "objectif de cette étape", "estimated_minutes": 3 }
+  ],
+  "opening_scene": {
+    "title": "DeutschScene - titre court",
+    "context_fr": "contexte réaliste en français",
+    "dialogue": [
+      { "speaker": "A", "de": "phrase allemande", "fr": "traduction française", "audio_text": "texte à répéter" }
+    ],
+    "comprehension_questions": [
+      { "question_fr": "question simple", "answer_fr": "réponse", "evidence_de": "phrase allemande source" }
+    ]
+  },
+  "deutsch_scenes": [
+    {
+      "title": "DeutschScene - titre court",
+      "real_life_context_fr": "situation de vie réelle",
+      "communication_goal_fr": "ce que l'apprenant apprend à faire",
+      "dialogue": [
+        { "speaker": "A", "de": "phrase allemande", "fr": "traduction française", "audio_text": "texte à répéter", "target": "vocabulaire ou grammaire visé" }
+      ],
+      "quick_check": [
+        { "question_fr": "question de compréhension", "answer_fr": "réponse attendue" }
+      ]
+    }
+  ],
+  "vocabulary": [
+    {
+      "de": "mot/expression allemand",
+      "article": "der/die/das ou null",
+      "fr": "traduction",
+      "example_de": "exemple naturel",
+      "usage_note_fr": "mini-note d'usage",
+      "priority": "high/medium",
+      "communication_use_fr": "à quoi sert ce mot dans la vraie vie"
+    }
+  ],
+  "grammar_in_context": [
+    {
+      "title": "règle",
+      "explanation_fr": "explication simple",
+      "examples": [
+        { "de": "exemple", "fr": "traduction" }
+      ],
+      "common_mistakes": [
+        { "wrong": "forme incorrecte", "correct": "forme correcte", "why_fr": "pourquoi" }
+      ],
+      "communication_use_fr": "quand utiliser cette règle dans une conversation"
+    }
+  ],
+  "communication_tasks": [
+    {
+      "title": "tâche de communication",
+      "instruction_fr": "ce que l'apprenant doit produire",
+      "support_phrases": ["phrase utile 1", "phrase utile 2"]
+    }
+  ],
+  "culture_tips": [
+    {
+      "title": "astuce culturelle",
+      "tip_fr": "explication courte",
+      "example_de": "phrase allemande liée si pertinent"
+    }
+  ],
+  "guided_dialogues": [
+    {
+      "title": "mini-dialogue progressif",
+      "goal_fr": "objectif",
+      "lines": [
+        { "speaker": "A", "de": "phrase", "fr": "traduction" }
+      ],
+      "reuse_focus": ["mot ou règle à réutiliser"]
+    }
+  ],
+  "interactive_exercises": [
+    {
+      "type": "comprehension/production/translation/fill_blank/word_order/oral_challenge",
+      "instruction_fr": "consigne",
+      "prompt": "question ou phrase",
+      "answer": "réponse attendue",
+      "hint_fr": "indice court"
+    }
+  ],
+  "final_challenge": {
+    "mission_fr": "mission réaliste",
+    "requirements": ["élément obligatoire 1", "élément obligatoire 2"],
+    "model_answer_de": "réponse modèle en allemand",
+    "model_answer_fr": "traduction"
+  },
+  "feedback": {
+    "answers": [
+      { "exercise_prompt": "rappel", "answer": "réponse" }
+    ],
+    "encouragement_fr": "feedback encourageant",
+    "next_steps": ["prochaine action courte"]
+  }
+}
+
+Règles:
+1. Utilise d'abord le contenu réel de la leçon fournie.
+2. Tu peux ajouter des phrases naturelles uniquement pour rendre la scène praticable.
+3. Ne fais pas une leçon trop longue: privilégie 2 à 3 DeutschScenes fortes, 5 à 8 exercices, et du vocabulaire prioritaire.
+4. Tous les exemples allemands doivent être utiles à l'oral.
+5. Les astuces culturelles doivent être concrètes, pas touristiques ni clichées.
+6. Le résultat doit être prêt à être affiché dans une application web.
+`;
+
+const ENHANCED_DIALOGUE_PROMPT = `
+Tu es un expert pédagogique en allemand langue étrangère et coach de conversation.
+
+Ta mission: améliorer le dialogue allemand ci-dessous pour qu'il soit plus naturel, fluide et utile pour un apprenant de niveau {niveau}.
+
+Critères d'amélioration:
+- Rendre le langage plus authentique: expressions courantes, particules modales, contractions naturelles si adaptées au niveau.
+- Ajouter des émotions et du contexte.
+- Varier la longueur des répliques.
+- Inclure du vocabulaire utile et des structures grammaticales cibles.
+- Ajouter 2 à 3 répliques pour prolonger la conversation.
+- Garder le dialogue compréhensible et praticable à l'oral.
+
+Contraintes de niveau:
+- A1/A2: reste simple, phrases courtes, très peu de particules, vocabulaire quotidien.
+- B1/B2: ajoute doch, mal, denn, eigentlich, connecteurs, petites reformulations naturelles.
+- C1/C2: ajoute nuances, registre, idiomes naturels, sans rendre le dialogue théâtral.
+
+Retourne UNIQUEMENT ce JSON valide, sans markdown:
+{
+  "title": "titre court",
+  "level": "{niveau}",
+  "context_fr": "contexte et émotion de la scène",
+  "improved_dialogue": [
+    {
+      "speaker": "A",
+      "de": "réplique allemande naturelle",
+      "fr": "traduction française",
+      "tone": "émotion ou intention courte",
+      "target": "vocabulaire ou structure utile"
+    }
+  ],
+  "changes_explained": [
+    "explication courte en français"
+  ],
+  "useful_language": [
+    {
+      "de": "expression ou structure",
+      "fr": "sens",
+      "why_fr": "pourquoi c'est utile"
+    }
+  ],
+  "oral_challenge": {
+    "instruction_fr": "défi oral court",
+    "model_answer_de": "réponse modèle"
+  }
+}
+
+Règles:
+1. Préserve l'objectif du dialogue original.
+2. Ne corrige pas seulement: rends la conversation plus vivante.
+3. Ajoute seulement 2 à 3 répliques nouvelles.
+4. Si le dialogue original contient des erreurs, corrige-les discrètement.
+5. Chaque réplique doit rester utile pour apprendre à parler.
+`;
+
+const PREMIUM_CONTENT_PROMPT = `
+Tu es un "Content Enhancer" premium pour l'apprentissage de l'allemand.
+
+Prends le contenu ci-dessous et fais-le passer au niveau supérieur pour un apprenant adulte de niveau {niveau}.
+
+Améliorations demandées:
+- Plus d'authenticité culturelle allemande, quand c'est pertinent.
+- Meilleure fluidité et naturel dans les phrases allemandes.
+- Meilleure pédagogie: explications claires, exemples utiles, pratique active.
+- Plus d'engagement émotionnel: contexte, intention, motivation, sentiment de progression.
+- Adaptation optimale au niveau {niveau}.
+
+Contraintes de niveau:
+- A1/A2: phrases courtes, vocabulaire fréquent, explications très simples, tâches guidées.
+- B1/B2: langage plus naturel, connecteurs, reformulations, production plus ouverte.
+- C1/C2: nuances, registre, précision, idiomes naturels, style plus authentique.
+
+Retourne UNIQUEMENT ce JSON valide, sans markdown:
+{
+  "title": "titre premium",
+  "level": "{niveau}",
+  "premium_version": {
+    "overview_fr": "résumé motivant de la version améliorée",
+    "content_sections": [
+      {
+        "title": "section",
+        "explanation_fr": "explication pédagogique claire",
+        "examples": [
+          { "de": "exemple allemand naturel", "fr": "traduction française", "note_fr": "pourquoi c'est utile" }
+        ],
+        "practice": [
+          { "type": "comprehension/production/oral/grammar/vocabulary", "prompt": "consigne", "answer": "réponse ou modèle" }
+        ]
+      }
+    ],
+    "authenticity_upgrades": [
+      { "de": "expression naturelle", "fr": "sens", "usage_fr": "quand l'utiliser" }
+    ],
+    "culture_notes": [
+      { "title": "note culturelle", "fr": "explication courte et concrète", "example_de": "exemple si utile" }
+    ],
+    "emotional_hook": {
+      "context_fr": "situation vivante",
+      "learner_mission_fr": "mission motivante"
+    },
+    "next_step_fr": "action concrète pour progresser"
+  }
+}
+
+Règles:
+1. Préserve le sens du contenu original.
+2. N'ajoute pas de culture allemande artificielle si ce n'est pas pertinent.
+3. La version premium doit être directement affichable dans une application web.
+4. Mets l'apprenant en action: chaque section importante doit avoir une pratique.
 `;
 
 function getModel(apiKey) {
@@ -653,6 +909,7 @@ Priorite absolue:
 3. Ne passe pas trop vite a la suite: corrige, fais repeter, puis propose une pratique ciblee.
 4. Adapte la difficulte au niveau ${normalizedLevel}.
 5. Explique en francais simple, avec allemand exact pour la phrase correcte.
+6. Le feedback doit etre positif, precis et motivant: nomme un point fort, un axe d'amelioration, explique pourquoi avec un exemple, puis donne une action concrete pour progresser.
 
 Retourne UNIQUEMENT ce JSON valide:
 {
@@ -660,7 +917,7 @@ Retourne UNIQUEMENT ce JSON valide:
   "level": "${normalizedLevel}",
   "is_correct": false,
   "score": 0,
-  "feedback_fr": "correction simple en francais",
+  "feedback_fr": "feedback bienveillant en francais: point fort + axe d'amélioration + explication + exemple + action concrete",
   "feedback_ar": "شرح قصير بالعربية",
   "correct_answer": "phrase correcte attendue",
   "mistake": {
@@ -759,6 +1016,87 @@ ${JSON.stringify(lessonContent).slice(0, 45000)}
   } catch (e) {
     console.error('Story parse error:', clean.substring(0, 500));
     throw new Error('Gemini returned invalid story JSON: ' + e.message);
+  }
+}
+
+async function generateEnhancedLesson({ lessonContent, level = 'A1' }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : (lessonContent?.lesson?.level || 'A1');
+  const model = getModel(apiKey);
+  const prompt = `${ENHANCED_LESSON_PROMPT.replaceAll('{niveau}', normalizedLevel)}
+
+LEÇON ACTUELLE JSON:
+${JSON.stringify(lessonContent).slice(0, 50000)}
+`;
+
+  const result = await generateContent(model, prompt);
+  const clean = cleanJSON(result.response.text());
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('Enhanced lesson parse error:', clean.substring(0, 500));
+    throw new Error('Gemini returned invalid enhanced lesson JSON: ' + e.message);
+  }
+}
+
+async function generateEnhancedDialogue({ dialogue, level = 'A1', lessonContent = null }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : (lessonContent?.lesson?.level || 'A1');
+  const model = getModel(apiKey);
+  const payload = {
+    level: normalizedLevel,
+    dialogue,
+    lessonContext: lessonContent ? {
+      lesson: lessonContent.lesson,
+      vocabulary: lessonContent.vocabulary?.slice(0, 30),
+      grammar: lessonContent.grammar?.slice(0, 8),
+      expressions: lessonContent.expressions?.slice(0, 20)
+    } : null
+  };
+  const prompt = `${ENHANCED_DIALOGUE_PROMPT.replaceAll('{niveau}', normalizedLevel)}
+
+DIALOGUE ACTUEL ET CONTEXTE JSON:
+${JSON.stringify(payload).slice(0, 35000)}
+`;
+
+  const result = await generateContent(model, prompt);
+  const clean = cleanJSON(result.response.text());
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('Enhanced dialogue parse error:', clean.substring(0, 500));
+    throw new Error('Gemini returned invalid enhanced dialogue JSON: ' + e.message);
+  }
+}
+
+async function generatePremiumContent({ content, level = 'A1', context = null }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const normalizedLevel = CONVERSATION_LEVEL_GUIDE[level] ? level : 'A1';
+  const model = getModel(apiKey);
+  const payload = {
+    level: normalizedLevel,
+    content,
+    context
+  };
+  const prompt = `${PREMIUM_CONTENT_PROMPT.replaceAll('{niveau}', normalizedLevel)}
+
+CONTENU À AMÉLIORER JSON/TEXTE:
+${JSON.stringify(payload).slice(0, 45000)}
+`;
+
+  const result = await generateContent(model, prompt);
+  const clean = cleanJSON(result.response.text());
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('Premium content parse error:', clean.substring(0, 500));
+    throw new Error('Gemini returned invalid premium content JSON: ' + e.message);
   }
 }
 
@@ -870,5 +1208,8 @@ module.exports = {
   generateConversationReply,
   generateAiLehrerReply,
   generateStoryFromLesson,
+  generateEnhancedLesson,
+  generateEnhancedDialogue,
+  generatePremiumContent,
   matchLessonToExistingDirect
 };

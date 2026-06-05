@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { uploadDocument } from '../api/client';
+import { enhanceDialogue, uploadDocument } from '../api/client';
 import { useSpeech } from '../hooks/useSpeech';
 
 const UPLOAD_STEPS = [
@@ -132,6 +132,12 @@ export default function Upload() {
               </div>
             )}
           </div>
+
+          {result.warning && (
+            <div style={{background:'rgba(232,197,71,0.1)',border:'1px solid rgba(232,197,71,0.32)',borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:20,color:'var(--accent)',fontSize:13,lineHeight:1.5}}>
+              ⚠️ {result.warning}
+            </div>
+          )}
 
           {/* Stats row */}
           <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
@@ -309,14 +315,58 @@ function SpeakButton({ text, onSpeak, label }) {
   );
 }
 
-export function DialoguesTab({ dialogues }) {
+export function DialoguesTab({ dialogues, lessonId = null, level = 'A1' }) {
   const { speak } = useSpeech();
+  const [enhancingIndex, setEnhancingIndex] = useState(null);
+  const [enhancedByIndex, setEnhancedByIndex] = useState({});
+  const [dialogueError, setDialogueError] = useState('');
+
+  const improveDialogue = async (dialogue, index) => {
+    if (enhancingIndex !== null) return;
+    setDialogueError('');
+    setEnhancingIndex(index);
+    try {
+      const normalizedDialogue = {
+        ...dialogue,
+        lines: (dialogue.lines || []).map(line => ({
+          ...line,
+          text: line.text || line.de || '',
+          translation_fr: line.translation_fr || line.fr || '',
+          translation_ar: line.translation_ar || line.ar || ''
+        }))
+      };
+      const { data } = await enhanceDialogue({
+        lesson_id: lessonId,
+        level,
+        dialogue: normalizedDialogue
+      });
+      setEnhancedByIndex(current => ({
+        ...current,
+        [index]: data.content || data
+      }));
+    } catch (err) {
+      console.error(err);
+      setDialogueError(err.response?.data?.error || 'Impossible d’améliorer ce dialogue pour le moment.');
+    } finally {
+      setEnhancingIndex(null);
+    }
+  };
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      {dialogueError && (
+        <div style={{background:'rgba(248,113,113,0.1)',border:'1px solid rgba(248,113,113,0.3)',borderRadius:'var(--radius)',padding:'12px 14px',color:'var(--red)',fontSize:13}}>
+          {dialogueError}
+        </div>
+      )}
       {dialogues.map((d,i)=>(
         <div key={i} className="card">
-          {d.title && <div style={{fontFamily:'var(--font-display)',fontSize:18,marginBottom:16,color:'var(--purple)'}}>💬 {d.title}</div>}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,marginBottom:16}}>
+            {d.title && <div style={{fontFamily:'var(--font-display)',fontSize:18,color:'var(--purple)'}}>💬 {d.title}</div>}
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => improveDialogue(d, i)} disabled={enhancingIndex !== null}>
+              {enhancingIndex === i ? 'Amélioration...' : 'Naturaliser'}
+            </button>
+          </div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {(d.lines||[]).map((line,j)=>(
               <div key={j} style={{display:'flex',gap:12,alignItems:'flex-start'}}>
@@ -334,8 +384,67 @@ export function DialoguesTab({ dialogues }) {
               </div>
             ))}
           </div>
+          {enhancedByIndex[i] && (
+            <EnhancedDialogueResult result={enhancedByIndex[i]} speak={speak} />
+          )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function EnhancedDialogueResult({ result, speak }) {
+  const lines = result.improved_dialogue || [];
+  return (
+    <div className="dialogue-enhanced">
+      <div className="dialogue-enhanced-header">
+        <div>
+          <span>{result.level || 'A1'}</span>
+          <strong>{result.title || 'Dialogue amélioré'}</strong>
+        </div>
+        {result.context_fr && <p>{result.context_fr}</p>}
+      </div>
+
+      <div className="dialogue-enhanced-lines">
+        {lines.map((line, index) => (
+          <div key={`${line.speaker}-${index}`}>
+            <b>{line.speaker || (index % 2 === 0 ? 'A' : 'B')}</b>
+            <div>
+              <span>{line.de}</span>
+              {line.de && <SpeakButton text={line.de} onSpeak={speak} label="Écouter la réplique améliorée" />}
+              {line.fr && <small>{line.fr}</small>}
+              {(line.tone || line.target) && <em>{[line.tone, line.target].filter(Boolean).join(' · ')}</em>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {(result.changes_explained || []).length > 0 && (
+        <div className="dialogue-enhanced-notes">
+          <strong>Ce qui a changé</strong>
+          {result.changes_explained.map((item, index) => <span key={index}>{item}</span>)}
+        </div>
+      )}
+
+      {(result.useful_language || []).length > 0 && (
+        <div className="dialogue-enhanced-useful">
+          {result.useful_language.map((item, index) => (
+            <div key={`${item.de}-${index}`}>
+              <strong>{item.de}</strong>
+              <span>{item.fr}</span>
+              <small>{item.why_fr}</small>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result.oral_challenge && (
+        <div className="dialogue-enhanced-challenge">
+          <strong>Défi oral</strong>
+          <span>{result.oral_challenge.instruction_fr}</span>
+          <small>{result.oral_challenge.model_answer_de}</small>
+        </div>
+      )}
     </div>
   );
 }
