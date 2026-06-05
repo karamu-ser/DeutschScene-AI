@@ -19,13 +19,22 @@
 
 ### Testing
 - [ ] Run `npm test` - all pass
+- [ ] Run backend syntax checks for changed routes/services
+- [ ] Run frontend build: `cd frontend && npm run build`
 - [ ] Test auth flow (register → login → access protected routes)
 - [ ] Test rate limiting (trigger and verify 429 response)
 - [ ] Test error handling (intentional errors should be logged)
 - [ ] Load testing with multiple concurrent users
+- [ ] Test PDF upload with a normal text PDF
+- [ ] Test PDF upload with a partial/scanned PDF and verify warning display
+- [ ] Test “Aujourd’hui” daily path in demo mode
+- [ ] Test lesson enhancer: `POST /api/generated-content/lessons/:id/enhance`
+- [ ] Test dialogue naturalizer from the Dialogues tab
+- [ ] Test vocabulary **Exporter PDF** and browser “Save as PDF”
 
 ### Documentation
 - [ ] Update environment variables docs
+- [ ] Refresh README screenshots after UI changes
 - [ ] Document backup procedures
 - [ ] Document rollback procedures
 - [ ] Create runbook for common issues
@@ -86,6 +95,13 @@ docker logs deutsch-lernen-backend
 curl http://localhost:3001/api/health
 ```
 
+### Step 4b: Verify AI Learning Routes
+```bash
+# Requires authenticated requests in production.
+# Smoke-test health first, then test upload/enhancement from the UI.
+curl http://localhost:3001/api/health
+```
+
 ### Step 5: Configure Nginx
 ```bash
 sudo nano /etc/nginx/sites-available/deutsch-lernen
@@ -115,6 +131,7 @@ df -h
 ### First 24 Hours
 - [ ] Monitor error logs for issues
 - [ ] Test key user journeys (register → learn)
+- [ ] Test upload → lessons → Today → AI Lehrer → vocabulary export
 - [ ] Verify rate limiting works
 - [ ] Check log file rotation
 
@@ -199,11 +216,14 @@ docker-compose up -d
 - [ ] Enable compression (gzip)
 - [ ] Add caching headers
 - [ ] Monitor response times
+- [ ] Monitor Gemini quota and 429 retry behavior
+- [ ] Track upload duration for large PDFs
 
 ### Frontend
 - [ ] Vite build is already optimized
 - [ ] Check bundle size: `npm run build`
 - [ ] Use CDN for static assets
+- [ ] Consider route-level code splitting if bundle warnings become a problem
 
 ---
 

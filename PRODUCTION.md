@@ -1,6 +1,6 @@
-# 🚀 Guide Production-Ready
+# Production Guide
 
-Ce guide vous aide à déployer Deutsch Lernen en production.
+Ce guide aide à déployer DeutschScene AI en production.
 
 ## ✅ Checklist Mise en Production
 
@@ -33,12 +33,20 @@ Ce guide vous aide à déployer Deutsch Lernen en production.
 - [x] Auth service tests
 - [x] Coverage sur services/
 
-### 6️⃣ **HTTPS**
+### 6️⃣ **Expérience IA**
+- [x] Analyse Gemini des PDFs/images
+- [x] Enrichissement de leçons en DeutschScenes premium
+- [x] Naturalisation des dialogues
+- [x] Feedback AI Lehrer et prononciation plus encourageant
+- [x] Import PDF partiel accepté avec avertissement utilisateur
+- [x] Export vocabulaire imprimable en PDF via navigateur
+
+### 7️⃣ **HTTPS**
 - [x] Self-signed certs (dev) → `certs/`
 - [x] Support HTTPS optionnel
 - [x] Production: utiliser Nginx reverse proxy
 
-### 7️⃣ **Docker**
+### 8️⃣ **Docker**
 - [x] Dockerfile backend (Node 18-alpine)
 - [x] Dockerfile frontend (build + serve)
 - [x] docker-compose.yml pour full stack
@@ -59,6 +67,10 @@ JWT_EXPIRY=7d
 
 GEMINI_API_KEY=votre-gemini-api-key
 GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_ANALYSIS_MAX_CHARS=60000
+
+UPLOAD_MAX_SIZE_MB=25
+PDF_TEXT_MIN_CHARS=200
 
 LOG_LEVEL=info
 ```
@@ -213,6 +225,26 @@ docker-compose up -d
 | 429 Too Many Requests | Attendre 15 min ou réduire requêtes |
 | Database locked | Vérifier permissions, redémarrer backend |
 | CORS error | Vérifier FRONTEND_URL dans .env |
+| PDF import partiel | Vérifier la qualité du PDF, augmenter le modèle Gemini si nécessaire, puis utiliser “Améliorer” |
+| Export PDF vocabulaire bloqué | Autoriser les popups ou utiliser le fallback d’impression du navigateur |
+
+---
+
+## Routes IA importantes
+
+- `POST /api/upload`
+- `GET /api/upload/summary`
+- `GET /api/upload/basics`
+- `GET /api/upload/dialogue-film`
+- `POST /api/generated-content/lessons/:id/enhance`
+- `POST /api/generated-content/dialogues/enhance`
+- `POST /api/generated-content/premium/enhance`
+- `POST /api/ai-lehrer/question`
+- `POST /api/ai-lehrer/respond`
+- `POST /api/conversation/practice`
+- `POST /api/pronunciation/check`
+
+Les routes `generated-content` sauvegardent les résultats dans la table `generated_content`.
 
 ---
 

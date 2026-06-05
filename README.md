@@ -2,7 +2,7 @@
 
 ## What is DeutschScene AI?
 
-DeutschScene AI transforms German course PDFs into structured lessons, flashcards, pronunciation practice, quizzes, animated dialogues, and personalized AI teacher sessions.
+DeutschScene AI transforms German course PDFs into structured lessons, flashcards, pronunciation practice, quizzes, animated dialogues, personalized AI teacher sessions, and premium DeutschScene learning flows.
 
 Unlike traditional flashcard apps, DeutschScene AI builds an interactive German teacher from your PDF. It asks questions, corrects your answers, remembers your mistakes, and creates targeted practice sessions.
 
@@ -17,9 +17,14 @@ The project is designed as an all-level German learning platform, from A1 to C2,
 - Aussprachetraining mit Spracherkennung und KI-Feedback.
 - Hochwertige deutsche Text-to-Speech-Ausgabe mit Browser-Fallback.
 - KI-generierte Zusammenfassungen und deutsche Grundlagen.
+- Heute page combining Rosetta-style immersion, HelloTalk-style conversation, and PDF-based review into one daily path.
 - Dialogfilm-Modus für szenenbasiertes Sprachtraining.
 - AI Gespräch mit niveauangepassten deutschen Antworten, Korrekturen, Übersetzungen und nützlichem Wortschatz.
-- AI Lehrer Mode for PDF-based correction, mini exercises, and adaptive teacher feedback.
+- AI Lehrer Mode for PDF-based correction, mini exercises, and encouraging adaptive teacher feedback.
+- Premium content enhancers for lessons, dialogues, feedback, and general learning content.
+- DeutschScene lesson upgrade that turns classic textbook chapters into real-life scenes, culture notes, communication tasks, and progressive exercises.
+- Natural dialogue upgrade with more authentic German, tone, target structures, and oral challenges.
+- Vocabulary PDF export through a Unicode-safe printable sheet.
 - Intelligentes Üben based on mistakes, difficult words, and lesson focus.
 - Schwächenkarte for visualizing repeated mistakes and weak skill areas.
 - Prüfung mode for mini exams generated from saved lessons.
@@ -64,6 +69,10 @@ Or run each service manually from the `backend` and `frontend` folders as descri
 ### Dashboard
 
 ![DeutschScene AI dashboard](docs/screenshots/dashboard.png)
+
+### Today
+
+![DeutschScene AI Today page](docs/screenshots/today.png)
 
 ### Upload
 
@@ -131,8 +140,9 @@ Or run each service manually from the `backend` and `frontend` folders as descri
 2. The frontend sends authenticated requests to the Express API.
 3. Uploaded documents are parsed and analyzed by Gemini.
 4. Extracted lessons and vocabulary are stored in the local SQL database.
-5. The learner reviews the material through flashcards, quizzes, pronunciation checks, summaries, and dialogue scenes.
-6. Progress routes aggregate learning activity for the dashboard and review queue.
+5. Optional AI enhancers turn raw lesson content into premium DeutschScenes, natural dialogues, better feedback, and culture-aware practice.
+6. The learner reviews the material through the Today flow, flashcards, quizzes, pronunciation checks, summaries, and dialogue scenes.
+7. Progress routes aggregate learning activity for the dashboard and review queue.
 
 Main API areas:
 
@@ -144,6 +154,10 @@ Main API areas:
 - `GET /api/upload/summary`
 - `GET /api/upload/basics`
 - `GET /api/upload/dialogue-film`
+- `POST /api/generated-content/lessons/:id/enhance`
+- `POST /api/generated-content/dialogues/enhance`
+- `POST /api/generated-content/premium/enhance`
+- `GET /api/generated-content`
 - `GET /api/words`
 - `GET /api/quiz/generate`
 - `POST /api/quiz/answer`
@@ -310,13 +324,14 @@ Security notes:
 
 - Keep the Vercel frontend demo available without login.
 - [Bug] Demo mode should never call backend.
-- [Docs] Add screenshots and demo GIF.
+- [Docs] Add demo GIF.
 - Expand test coverage for the core API routes.
 
 ### Learning Experience
 
 - [Feature] Improve AI Lehrer practice flow.
 - [Feature] Add Anki export for vocabulary and flashcards.
+- [Feature] Add direct server-side PDF generation for exports.
 - Improve spaced repetition scheduling.
 - Add richer listening comprehension exercises.
 - [Feature] Add PWA offline cache.
